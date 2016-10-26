@@ -74,13 +74,13 @@ table, th, td {
 </style>
 </head>
 <body>
-%s
   <h3>Menu</h3>
 <p>
 <table style="">
 <tr><th><a href="/">Home</a></th><th><a href="/cgi-bin/program.py">Program</a></th><th><a href="/cgi-bin/delay.py">Delay</a></th><th><a href="/cgi-bin/manual.py">Manual Control</a><th><a href="/cgi-bin/settings.py">Settings</a></th></tr>
 </table>
 </p>
+<p>Current status: %s</p>
 <h3>Manual Station Control</h3>
 <form action="/cgi-bin/manual.py" method="get">
 """ % data

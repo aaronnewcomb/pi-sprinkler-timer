@@ -7,11 +7,23 @@ import datetime
 import urllib2
 import optparse
 import json
+import socket
 
 config = ConfigParser.ConfigParser()
 today = datetime.datetime.today()
 yesterday = today - datetime.timedelta(days=1)
 url = "https://api.forecast.io/forecast/"
+
+clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+clientsocket.connect(('localhost', 5555))
+clientsocket.send("status:0")
+while True:
+    data = clientsocket.recv(64)
+    if "disabled" in data:
+        (data,futuretime) = data.split(":")
+        localtime = time.asctime( time.localtime(float(futuretime)) )
+    break
+clientsocket.close()
 
 print "Content-type: text/html\n\n"
 print """
@@ -31,8 +43,9 @@ table, th, td {
 <table style="">
 <tr><th><a href="/">Home</a></th><th><a href="/cgi-bin/program.py">Program</a></th><th><a href="/cgi-bin/delay.py">Delay</a></th><th><a href="/cgi-bin/manual.py">Manual Control</a><th><a href="/cgi-bin/settings.py">Settings</a></th></tr>
 </table>
+<p>Current status: %s</p>
 <p>
-"""
+""" % data
 
 if not config.read("/var/www/html/cgi-bin/sprinkler.config"):
     # lets create that config file for next time...
@@ -46,7 +59,7 @@ if not config.read("/var/www/html/cgi-bin/sprinkler.config"):
         config.set('forcastio','lng','-122.419416')
         config.write(cfgfile)
         cfgfile.close()
-        print ("New config file successfully created! Be sure to edit the settings and add your <a href="https://darksky.net/dev/">forecastio api key</a>.")
+        print ("""New config file successfully created! Be sure to edit the settings and add your <a href="https://darksky.net/dev/">forecastio api key</a>.""")
     except:
         print ("Config file could not be created for first run.")
 
