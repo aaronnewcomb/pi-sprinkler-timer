@@ -10,9 +10,9 @@ A web driven scheduler system for the Raspberry Pi written in Python using light
 * 5V Relay Board
 
 ## Pre-requisites:
-Lighttpd must be installed
-[Pigpio](http://abyz.co.uk/rpi/pigpio/) must be installed
-RPi must be configured to connect to your network
+* Lighttpd must be installed
+* [Pigpio](http://abyz.co.uk/rpi/pigpio/) must be installed
+* RPi must be configured to connect to your network
 
 ## Installation:
 ### Configure Lighttpd to run python scripts with password protection.
