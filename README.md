@@ -68,6 +68,18 @@ pigpiod &
 ### Add your GPIO pins
 Open the scheduler.py script and change the values in `station` to match the GPIO pins you connected to your relay board.
 
+### Enable reboot and shutdown from the web page
+Add the "www-data" user to the /etc/sudoers file by using visudo. NOTE: This weakens the security of your system in that a knowledgeable person might be able to reboot or shutdown your RPi. You have been warned.
+
+`sudo visudo`
+
+Add these lines to the bottom of the file.
+
+```
+www-data ALL=/sbin/shutdown
+www-data ALL=NOPASSWD:/sbin/shutdown
+```
+
 ### *Issues* :shit:
 I am still working on the script to change/add programs. For now you will have to open the schedule.py program and manually edit the `job1` function and the `scheduler.add_job` statement so that the program runs when you want it to. If you want multiple programs you can define another job function (i.e. job2) and add another `scheduler.add_job` statement to run it as well.
 
