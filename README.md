@@ -11,13 +11,13 @@ Sprinler Valves
 
 ## Pre-requisites:
 Lighttpd must be installed
-Pigpio must be installed and configured to start automatically
+[Pigpio](http://abyz.co.uk/rpi/pigpio/) must be installed and configured to start automatically
 RPi must be configured to connect to your network
 
 ## Installation:
-### 1. Configure Lighttpd to run python scripts with password protection.
+### Configure Lighttpd to run python scripts with password protection.
 
-Add the following to your /etc/lighttpd/lighttpd.conf configuration file:
+#### 1. Add the following to your /etc/lighttpd/lighttpd.conf configuration file:
 ```
 auth.debug = 2
 auth.backend = "plain"
@@ -35,18 +35,16 @@ $HTTP["url"] =~ "^/" {
 ```
 Change the username from "admin" to whatever you want.
 
-Create a file called /etc/.lighttpdpassword with one line in it:
-```
-admin:password
-```
+#### 2. Create a file called /etc/.lighttpdpassword with one line in it:
+`admin:password`
 Change the password to whatever you want.
 
-Restart Lighttpd.
-```
-sudo service lighttpd restart
-```
+#### 3. Restart Lighttpd.
+`sudo service lighttpd restart`
 
-
+### Copy scripts
+#### 1. Download this github repository and copy index.html to your web root directory.
+#### 2. Copy all the other ".py" scripts to your cgi-bin directory.
 
 
 
