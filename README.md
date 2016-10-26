@@ -66,7 +66,7 @@ pigpiod &
 ### Add your GPIO pins
 Open the scheduler.py script and change the values in `station` to match the GPIO pins you connected to your relay board.
 
-### Issues
+### *Issues* :shit:
 I am still working on the script to change/add programs. For now you will have to open the schedule.py program and manually edit the `job1` function and the `scheduler.add_job` statement so that the program runs when you want it to. If you want multiple programs you can define another job function (i.e. job2) and add another `scheduler.add_job` statement to run it as well.
 
 Here is the way the job1 function works:
@@ -75,13 +75,11 @@ Here is the way the job1 function works:
 def job1(): # The name of the job
     print("Job 1 running!")
     running = True
-    pi.write(station[0], 0) # Sets the first GPIO pin LOW with activates the associated relay
+    pi.write(station[0], 0) # Sets the first GPIO pin LOW which activates the associated relay
     time.sleep(600) # Wait 10 minutes
-    pi.write(station[0], 1) # Sets the first GPIO pin HIGH with de-activates the associated relay
+    pi.write(station[0], 1) # Sets the first GPIO pin HIGH which de-activates the associated relay
     time.sleep(1) # Wait for 1 second
 ```
-
-
 
 ### Give it a try
 Reboot your RPi. Open a web browser and type in the IP address of your RPi. You should see the index.py page.
