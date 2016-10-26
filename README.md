@@ -17,7 +17,7 @@ RPi must be configured to connect to your network
 ## Installation:
 ### Configure Lighttpd to run python scripts with password protection.
 
-1. Add the following to your /etc/lighttpd/lighttpd.conf configuration file:
+#### 1. Add the following to your /etc/lighttpd/lighttpd.conf configuration file:
 
 ```
 auth.debug = 2
@@ -37,7 +37,7 @@ $HTTP["url"] =~ "^/" {
 
 Change the username from "admin" to whatever you want.
 
-2. Create a file called /etc/.lighttpdpassword with one line in it:
+#### 2. Create a file called /etc/.lighttpdpassword with one line in it:
 
 `admin:password`
 
@@ -48,8 +48,8 @@ Change the password to whatever you want.
 `sudo service lighttpd restart`
 
 ### Copy scripts
-1. Download this github repository and copy index.html to your web root directory.
-2. Copy all the other ".py" scripts to your cgi-bin directory.
+#### 1. Download this github repository and copy index.html to your web root directory.
+#### 2. Copy all the other ".py" scripts to your cgi-bin directory.
 
 
 
