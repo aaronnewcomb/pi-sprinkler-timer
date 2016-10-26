@@ -1,5 +1,5 @@
 # pi-sprinkler-timer
-A web driven scheduler system for the Raspberry Pi written in Python using lighttpd and pigpio. If you want a more turnkey and feature rich solution for your RPi, I highly recommend [OpenSprinkler Pi](https://opensprinkler.com/product/opensprinkler-pi/). 
+A DIY web driven scheduler system for the Raspberry Pi written in Python using lighttpd and pigpio. If you are looking for a more turnkey and feature rich solution for your RPi, I highly recommend [OpenSprinkler Pi](https://opensprinkler.com/product/opensprinkler-pi/). 
 
 ## Parts:
 * Raspberry Pi (or other dev board capable of running Python and Lighttpd)
