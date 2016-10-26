@@ -43,13 +43,22 @@ Change the username from "admin" to whatever you want.
 
 Change the password to whatever you want.
 
-3. Restart Lighttpd.
+#### 3. Restart Lighttpd.
 
 `sudo service lighttpd restart`
 
 ### Copy scripts
 #### 1. Download this github repository and copy index.html to your web root directory.
 #### 2. Copy all the other ".py" scripts to your cgi-bin directory.
+#### 3. Add the scheduler to rc.local so it starts when the Pi boots up.
+
+`sudo nano /etc/rc.local`
+
+Add ...
+
+`/path to your cgi-bin directory/scheduler.py`
+
+... before the "exit" statement.
 
 
 
