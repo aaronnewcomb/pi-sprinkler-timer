@@ -11,7 +11,7 @@ A web driven scheduler system for the Raspberry Pi written in Python using light
 
 ## Pre-requisites:
 Lighttpd must be installed
-[Pigpio](http://abyz.co.uk/rpi/pigpio/) must be installed and configured to start automatically
+[Pigpio](http://abyz.co.uk/rpi/pigpio/) must be installed
 RPi must be configured to connect to your network
 
 ## Installation:
@@ -50,15 +50,20 @@ Change the password to whatever you want.
 ### Copy scripts
 #### 1. Download this github repository and copy index.html to your web root directory.
 #### 2. Copy all the other ".py" scripts to your cgi-bin directory.
-#### 3. Add the scheduler to rc.local so it starts when the Pi boots up.
+#### 3. Add pigpiod and the scheduler to rc.local so they start when the Pi boots up.
 
 `sudo nano /etc/rc.local`
 
 Add ...
 
-`/path to your cgi-bin directory/scheduler.py`
+```
+pigpiod &
+/path to your cgi-bin directory/scheduler.py &
+```
 
 ... before the "exit" statement.
 
-
+### Give it a try
+Reboot your RPi. Open a web browser and type in the IP address of your RPi. You should see the index.py page.
+![pi-sprinker-timer main web page](/images/logo.png)
 
