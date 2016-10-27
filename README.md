@@ -81,7 +81,7 @@ www-data ALL=NOPASSWD:/sbin/shutdown
 ```
 
 ### *Issues* :shit:
-I am still working on the script to change/add programs. For now you will have to open the schedule.py program and manually edit the `job1` function and the `scheduler.add_job` statement so that the program runs when you want it to. If you want multiple programs you can define another job function (i.e. job2) and add another `scheduler.add_job` statement to run it as well.
+I am still working on the script to change/add programs. For now you will have to open the schedule.py script and manually edit the `job1` function and the `scheduler.add_job` statement so that the program runs when you want it to. If you want multiple programs you can define another job function (i.e. job2) and add another `scheduler.add_job` statement to run it as well.
 
 Here is the way the job1 function works:
 
