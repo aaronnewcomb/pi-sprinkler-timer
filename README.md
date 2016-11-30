@@ -45,7 +45,13 @@ Change the username from "admin" to whatever you want.
 
 Change the password to whatever you want.
 
-#### 3. Restart Lighttpd.
+#### 3. Enable cgi for Lighttpd
+
+Run the following command to enable the cgi mod.
+
+`lighty-enable-mod cgi`
+
+#### 4. Restart Lighttpd.
 
 `sudo service lighttpd restart`
 
