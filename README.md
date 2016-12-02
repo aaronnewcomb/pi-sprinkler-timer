@@ -1,5 +1,5 @@
 # pi-sprinkler-timer
-A DIY web driven scheduler system for the Raspberry Pi written in Python using lighttpd and pigpio. This is typically used to support a irrigation system with multiple sprikler valves, but you could also use it to control other devices.
+A DIY web driven scheduler system for the Raspberry Pi written in Python using lighttpd and pigpio. This is typically used to support a irrigation system with multiple sprinkler valves, but you could also use it to control other devices.
 
 (If you are looking for a more turnkey and feature rich solution for your RPi, I highly recommend [OpenSprinkler Pi](https://opensprinkler.com/product/opensprinkler-pi/) instead.) 
 
