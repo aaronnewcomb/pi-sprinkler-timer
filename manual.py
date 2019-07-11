@@ -5,10 +5,19 @@ import cgi
 import cgitb; cgitb.enable()  # for troubleshooting
 import socket
 import time
+import ConfigParser
 
 # Create instance of FieldStorage
 form = cgi.FieldStorage()
 error = False
+config = ConfigParser.ConfigParser()
+config_file = "/var/www/html/cgi-bin/sprinkler.config"
+config.read(config_file)
+# Read in global station and program names
+station = config.get("Station GPIOs","pins").split(",")
+station = map(int,station)
+program = config.get("Programs","names").split(",")
+pi = pigpio.pi()
 
 if form.getfirst("test") == "Start":
     duration = form.getvalue('duration')
@@ -25,13 +34,13 @@ elif form.getfirst("test") == "Cancel":
     clientsocket.send("test_run:cancel")
     clientsocket.close()
 
-time.sleep(1)
+time.sleep(.25)
 clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 clientsocket.connect(('localhost', 5555))
 clientsocket.send("status:0")
 while True:
     data = clientsocket.recv(64)
-    if data == "running":
+    if data == "Running":
         running = True
         break
     else:
@@ -41,19 +50,15 @@ while True:
         break
 clientsocket.close()
 
-pi = pigpio.pi()
-station = [5,6,12,13,16,19,20,21]
 status = {}
 
 for i in station:
     pi.set_mode(i, pigpio.OUTPUT)
-    pi.write(i, 1)
-
-for i in station:
-    if form.getfirst(str(i),"OFF") == "ON":
-        pi.write(i, 0)
-    else:
-        pi.write(i, 1)
+    if form.getfirst("test") != "Start" and running == False:
+        if form.getfirst(str(i)) == "ON":
+            pi.write(i, 0)
+        else:
+            pi.write(i, 1)
 
 for i in station:
     if pi.read(i) == 0:
@@ -86,7 +91,7 @@ table, th, td {
 """ % data
 
 for x in xrange(0, len(station)):
-    print """<p style="color:%s;font-weight: bold">Station %s: <input type="submit" name="%s" value="ON"><input type="submit" name="%s" value="OFF"></p>""" % (status[station[x]],x+1,station[x],station[x])
+    print """<p style="color:%s;font-weight: bold">Station %s: <input type="submit" name="%s" value="ON" style="background-color:%s;"><input type="submit" name="%s" value="OFF"></p>""" % (status[station[x]],x+1,station[x],status[station[x]],station[x])
 
 #print form.getfirst("5","bonk")
 #cgi.print_form(form)

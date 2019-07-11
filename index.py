@@ -4,6 +4,7 @@ import cgi
 import cgitb; cgitb.enable()  # for troubleshooting
 import ConfigParser
 import datetime
+import time
 import urllib2
 import optparse
 import json
@@ -13,6 +14,35 @@ config = ConfigParser.ConfigParser()
 today = datetime.datetime.today()
 yesterday = today - datetime.timedelta(days=1)
 url = "https://api.forecast.io/forecast/"
+# Full path of config file
+config_file = "/var/www/html/cgi-bin/sprinkler.config"
+config_lines = """# Change this to match the GPIO numbers for the pins you connect to your relay board
+[Station GPIOs]
+pins = 5,6,12,13,16,19,20,21
+
+[Programs]
+names = program1,program2,program3,program4
+
+[OpenWeatherMap]
+apikey = 4d741c61036a070a425c19446dc92392
+zipcode = 94510
+
+[forecastio]
+apikey = 8f59e11beab60fee52912ab48354b0b9
+lat = 38.049365
+lng = -122.158578
+
+[program1]
+lastrun = 0
+
+[program2]
+lastrun = 0
+
+[program3]
+lastrun = 0
+
+[program4]
+lastrun = 0"""
 
 clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 clientsocket.connect(('localhost', 5555))
@@ -22,6 +52,7 @@ while True:
     if "disabled" in data:
         (data,futuretime) = data.split(":")
         localtime = time.asctime( time.localtime(float(futuretime)) )
+        data = "Disabled unitl %s" % (localtimed)
     break
 clientsocket.close()
 
@@ -47,21 +78,18 @@ table, th, td {
 <p>
 """ % data
 
-if not config.read("/var/www/html/cgi-bin/sprinkler.config"):
+if not config.read(config_file):
     # lets create that config file for next time...
     try:
-        cfgfile = open("/var/www/html/cgi-bin/sprinkler.config",'w')
-
-        # add the settings to the structure of the file, and lets write it out...
-        config.add_section('forcastio')
-        config.set('forcastio','apikey','key')
-        config.set('forcastio','lat','37.774929y')
-        config.set('forcastio','lng','-122.419416')
-        config.write(cfgfile)
-        cfgfile.close()
-        print ("""New config file successfully created! Be sure to edit the settings and add your <a href="https://darksky.net/dev/">forecastio api key</a>.""")
-    except:
-        print ("Config file could not be created for first run.")
+        f = open(config_file,"w")
+    except AssertionError as error:
+        print(error)
+        print ("Config file could not be opened.")
+    else:
+        f.writelines(config_lines.splitlines(True))
+        f.close()
+        print ("""New config file successfully created! Be sure to <a href="http://192.168.0.159:8000/cgi-bin/settings.py">edit the settings</a> and add your <a href="https://darksky.net/dev/">forecastio api key</a>.""")
+        config.read(config_file)
 
 api = config.get("forecastio","apikey")
 lat = config.get("forecastio","lat")

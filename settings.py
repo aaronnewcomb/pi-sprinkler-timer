@@ -11,28 +11,51 @@ config = ConfigParser.ConfigParser()
 clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 form = cgi.FieldStorage()
 config_file = "/var/www/html/cgi-bin/sprinkler.config"
+config_lines = """# Change this to match the GPIO numbers for the pins you connect to your relay board
+[Station GPIOs]
+pins = 5,6,12,13,16,19,20,21
+
+[Programs]
+names = program1,program2,program3,program4
+
+[OpenWeatherMap]
+apikey = 4d741c61036a070a425c19446dc92392
+zipcode = 94510
+
+[forecastio]
+apikey = 8f59e11beab60fee52912ab48354b0b9
+lat = 38.049365
+lng = -122.158578
+
+[program1]
+lastrun = 0
+
+[program2]
+lastrun = 0
+
+[program3]
+lastrun = 0r
+
+[program4]
+lastrun = 0"""
 now = datetime.datetime.now()
 
 def notify():
     clientsocket.connect(('localhost', 5555))
-    clientsocket.send('config_updated')
+    clientsocket.send('config_updated:0')
     clientsocket.close()
 
 def create_default():
     try:
-        cfgfile = open(config_file,'w')
-
-        # add the settings to the structure of the file, and lets write it out...
-        config.add_section('forcastio')
-        config.set('forcastio','apikey','key')
-        config.set('forcastio','lat','37.774929')
-        config.set('forcastio','lng','-122.419416')
-        config.write(cfgfile)
-        cfgfile.close()
-        print ("New config file successfully created!")
-        notify()
-    except:
-        print ("Config file could not be created.")
+        f = open(config_file,"w")
+    except AssertionError as error:
+        print(error)
+        print ("Config file could not be opened.")
+    else:
+        f.writelines(config_lines.splitlines(True))
+        f.close()
+        print ("""New config file successfully created! Be sure to <a href="http://192.168.0.159:8000/cgi-bin/settings.py">edit the settings</a> and add your <a href="https://darksky.net/dev/">forecastio api key</a>.""")
+        config.read(config_file)
 
 if not config.read(config_file):
     # lets create that config file for next time...
