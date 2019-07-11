@@ -1,27 +1,20 @@
 # pi-sprinkler-timer
-A DIY web driven scheduler system for the Raspberry Pi written in Python using lighttpd and pigpio. This is typically used to support a irrigation system with multiple sprikler valves, but you could also use it to control other devices.
+A DIY web driven scheduler system for the Raspberry Pi written in Python using lighttpd and pigpio. This is typically used to support a irrigation system with multiple sprinkler valves, but you could also use it to control other devices.
 
-(If you are looking for a more turnkey and feature rich solution for your RPi, I highly recommend [OpenSprinkler Pi](https://opensprinkler.com/product/opensprinkler-pi/) instead.) 
+(If you are looking for a more turnkey and feature rich solution for your RPi, I highly recommend [OpenSprinkler Pi](https://opensprinkler.com/product/opensprinkler-pi/) instead.)
 
 ## Parts:
 * Raspberry Pi (or other dev board capable of running Python and Lighttpd)
  * WiFi dongle (if not using RPi v3)
  * Power Supply for RPi
 * 24V AC Sprinkler Power Supply
-* Sprinler Valves
+* Sprinkler Valves
 * 5V Relay Board
 
 ## Pre-requisites:
 * Lighttpd must be installed
-* [Pigpio](http://abyz.co.uk/rpi/pigpio/) must be installed
+* [Pigpio](http://abyz.co.uk/rpi/pigpio/) must be installed (Installed by default on Raspbian)
 * RPi must be configured to connect to your network
-* Install Python libraries
-
-`sudo apt-get install python-apscheduler python-funcsigs`
-
-If running Python 2.x you might need to install `futures`
-
-`sudo pip install futures`
 
 ## Installation:
 ### Configure Lighttpd to run python scripts with password protection.
@@ -92,13 +85,17 @@ Add ...
 
 ```
 pigpiod &
-/path to your cgi-bin directory/scheduler.py &
+/<path-to-your-cgi-bin-directory>/sprinkler.py &
 ```
 
-... before the "exit" statement.
+... before the "exit" statement. Reboot your Raspberry Pi.
+
+### Give it a try
+Reboot your RPi. Open a web browser and type in the IP address of your RPi. You should see the index.py page.
+![pi-sprinker-timer main web page](/images/home.png)
 
 ### Add your GPIO pins
-Open the scheduler.py script and change the values in `station` to match the GPIO pins you connected to your relay board.
+The first time you connect to the web page a new config file should be created. Open the sprinkler.config file and change the values in [Station GPIOs] to match the GPIO pins you connected to your relay board.
 
 ### Enable reboot and shutdown from the web page
 Add the "www-data" user to the /etc/sudoers file by using visudo. NOTE: This weakens the security of your system in that a knowledgeable person might be able to reboot or shutdown your RPi. You have been warned.
@@ -113,21 +110,4 @@ www-data ALL=NOPASSWD:/sbin/shutdown
 ```
 
 ### *Issues* :shit:
-I am still working on the script to change/add programs. For now you will have to open the schedule.py script and manually edit the `job1` function and the `scheduler.add_job` statement so that the program runs when you want it to. If you want multiple programs you can define another job function (i.e. job2) and add another `scheduler.add_job` statement to run it as well.
-
-Here is the way the job1 function works:
-
-```
-def job1(): # The name of the job
-    print("Job 1 running!")
-    running = True
-    pi.write(station[0], 0) # Sets the first GPIO pin LOW which activates the associated relay
-    time.sleep(600) # Wait 10 minutes
-    pi.write(station[0], 1) # Sets the first GPIO pin HIGH which de-activates the associated relay
-    time.sleep(1) # Wait for 1 second
-```
-
-### Give it a try
-Reboot your RPi. Open a web browser and type in the IP address of your RPi. You should see the index.py page.
-![pi-sprinker-timer main web page](/images/home.png)
-
+Need to make it look prettier.
