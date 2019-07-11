@@ -15,6 +15,13 @@ A DIY web driven scheduler system for the Raspberry Pi written in Python using l
 * Lighttpd must be installed
 * [Pigpio](http://abyz.co.uk/rpi/pigpio/) must be installed
 * RPi must be configured to connect to your network
+* Install Python libraries
+
+`sudo apt-get install python-apscheduler python-funcsigs`
+
+If running Python 2.x you might need to install `futures`
+
+`sudo pip install futures`
 
 ## Installation:
 ### Configure Lighttpd to run python scripts with password protection.
@@ -45,14 +52,39 @@ Change the username from "admin" to whatever you want.
 
 Change the password to whatever you want.
 
-#### 3. Restart Lighttpd.
+#### 3. Enable cgi for Lighttpd
+
+Run the following command to enable the cgi mod.
+
+`lighty-enable-mod cgi`
+
+#### 4. (optional) Add redirection to index.py
+
+Create a file in your www root directory (i.e. /var/www/html) called index.html that will redirect traffic to the index.py script.
+
+```
+<html>
+<head>
+    <meta http-equiv="refresh" content="0; url=/cgi-bin/index.py" />
+</head>
+</html>
+```
+
+#### 5. Restart Lighttpd.
 
 `sudo service lighttpd restart`
 
 ### Copy scripts
 #### 1. Download this github repository and copy index.html to your web root directory.
 #### 2. Copy all the other ".py" scripts to your cgi-bin directory.
-#### 3. Add pigpiod and the scheduler to rc.local so they start when the Pi boots up.
+#### 3. Give files in your cgi-bin location execute privilages and the correct ownership.
+
+```
+sudo chmod +x /path-to-your-cgi-bin-directory/*
+sudo chown www-data:www-data /path-to-your-cgi-bin-directory/*
+```
+
+#### 4. Add pigpiod and the scheduler to rc.local so they start when the Pi boots up.
 
 `sudo nano /etc/rc.local`
 
@@ -81,7 +113,7 @@ www-data ALL=NOPASSWD:/sbin/shutdown
 ```
 
 ### *Issues* :shit:
-I am still working on the script to change/add programs. For now you will have to open the schedule.py program and manually edit the `job1` function and the `scheduler.add_job` statement so that the program runs when you want it to. If you want multiple programs you can define another job function (i.e. job2) and add another `scheduler.add_job` statement to run it as well.
+I am still working on the script to change/add programs. For now you will have to open the schedule.py script and manually edit the `job1` function and the `scheduler.add_job` statement so that the program runs when you want it to. If you want multiple programs you can define another job function (i.e. job2) and add another `scheduler.add_job` statement to run it as well.
 
 Here is the way the job1 function works:
 
