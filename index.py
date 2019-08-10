@@ -52,7 +52,7 @@ while True:
     if "disabled" in data:
         (data,futuretime) = data.split(":")
         localtime = time.asctime( time.localtime(float(futuretime)) )
-        data = "Disabled unitl %s" % (localtimed)
+        data = "Disabled unitl %s" % (localtime)
     break
 clientsocket.close()
 
