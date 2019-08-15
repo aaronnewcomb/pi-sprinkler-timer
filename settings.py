@@ -34,7 +34,7 @@ lastrun = 0
 lastrun = 0
 
 [program3]
-lastrun = 0r
+lastrun = 0
 
 [program4]
 lastrun = 0"""
