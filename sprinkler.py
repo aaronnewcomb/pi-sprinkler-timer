@@ -58,9 +58,11 @@ class ThreadedServer(SocketServer.BaseRequestHandler):
                 elif "status" in data:
                     if enabled == False:
                         # send the message to the client
-                        self.request.send("disabled:%s" % str(futuretime))
+                        self.request.send("Disabled. Last run %s" % (lastrun))
                     elif running:
                         self.request.send("Running")
+                    elif delay:
+                        self.request.send("Delayed:%s" % str(futuretime))
                     else:
                         self.request.send("Stopped. Last run %s" % (lastrun))
                 elif "pause" in data:

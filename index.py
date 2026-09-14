@@ -1,19 +1,19 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import cgi
 import cgitb; cgitb.enable()  # for troubleshooting
-import ConfigParser
+import configparser
 import datetime
 import time
-import urllib2
+import urllib.request
 import optparse
 import json
 import socket
 
-config = ConfigParser.ConfigParser()
+config = configparser.ConfigParser()
 today = datetime.datetime.today()
 yesterday = today - datetime.timedelta(days=1)
-url = "https://api.forecast.io/forecast/"
+url = "https://api.pirateweather.net/forecast/"
 # Full path of config file
 config_file = "/var/www/html/cgi-bin/sprinkler.config"
 config_lines = """# Change this to match the GPIO numbers for the pins you connect to your relay board
@@ -46,18 +46,18 @@ lastrun = 0"""
 
 clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 clientsocket.connect(('localhost', 5555))
-clientsocket.send("status:0")
+clientsocket.send("status:0".encode())
 while True:
-    data = clientsocket.recv(64)
-    if "disabled" in data:
+    data = clientsocket.recv(64).decode('utf-8')
+    if "Delayed" in data:
         (data,futuretime) = data.split(":")
         localtime = time.asctime( time.localtime(float(futuretime)) )
-        data = "Disabled unitl %s" % (localtime)
+        data = "Delayed unitl %s" % (localtime)
     break
 clientsocket.close()
 
-print "Content-type: text/html\n\n"
-print """
+print ("Content-type: text/html\n\n")
+print ("""
 <html>
 <head>
 <title>Pi Sprinkler - Home</title>
@@ -76,7 +76,7 @@ table, th, td {
 </table>
 <p>Current status: %s</p>
 <p>
-""" % data
+""" % data)
 
 if not config.read(config_file):
     # lets create that config file for next time...
@@ -94,12 +94,12 @@ if not config.read(config_file):
 api = config.get("forecastio","apikey")
 lat = config.get("forecastio","lat")
 lng = config.get("forecastio","lng")
-req = urllib2.Request(url+api+"/"+("%s,%s" % (lat,lng)))
-response = urllib2.urlopen(req)
-req_y = urllib2.Request(url+api+"/"+("%s,%s,%s" % (lat,lng,yesterday.replace(microsecond=0).isoformat())))
-response_y = urllib2.urlopen(req_y)
-parsed = json.loads(response.read())
-parsed_y = json.loads(response_y.read())
+req = urllib.request.Request(url+api+"/"+("%s,%s" % (lat,lng)))
+response = urllib.request.urlopen(req)
+req_y = urllib.request.Request(url+api+"/"+("%s,%s,%s" % (lat,lng,yesterday.replace(microsecond=0).isoformat())))
+response_y = urllib.request.urlopen(req_y)
+parsed = json.loads(response.read().decode('utf-8'))
+parsed_y = json.loads(response_y.read().decode('utf-8'))
 current = parsed["currently"]
 daily = parsed["daily"]["data"][0]
 daily_y = parsed_y["daily"]["data"][0]
@@ -117,16 +117,16 @@ def get_precip(i):
     elif precip > .4:
         return "Heavy"
 
-print "<h3>Weather Report</h3>"
-print "Current Time: %s<br>" % today
-print "Current Conditions: %s<br>" % current["summary"]
-print "Current Temperature: %s<br>" % current["temperature"]
-print "Today's Forecasted High Temperature: %s<br>" % daily["temperatureMax"]
-print "Yesterday's High Temperature: %s<br>" % daily_y["temperatureMax"]
-print "Current Precipitation: %s<br>" % get_precip(daily)
-print "Yesterday's Precipitation: %s<br>" % get_precip(daily_y)
+print ("<h3>Weather Report</h3>")
+print ("Current Time: %s<br>" % today)
+print ("Current Conditions: %s<br>" % current["summary"])
+print ("Current Temperature: %s<br>" % current["temperature"])
+print ("Today's Forecasted High Temperature: %s<br>" % daily["temperatureMax"])
+print ("Yesterday's High Temperature: %s<br>" % daily_y["temperatureMax"])
+print ("Current Precipitation: %s<br>" % get_precip(daily))
+print ("Yesterday's Precipitation: %s<br>" % get_precip(daily_y))
 
-print """
+print ("""
 </p></body>
 </html>
-"""
+""")

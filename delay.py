@@ -36,9 +36,10 @@ clientsocket.connect(('localhost', 5555))
 clientsocket.send("status:0")
 while True:
     data = clientsocket.recv(64)
-    if "disabled" in data:
+    if "Delayed" in data:
         (data,futuretime) = data.split(":")
         localtime = time.asctime( time.localtime(float(futuretime)) )
+        data = "Delayed unitl %s" % (localtime)
     break
 clientsocket.close()
 

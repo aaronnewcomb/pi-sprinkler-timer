@@ -43,6 +43,12 @@ while True:
     if data == "Running":
         running = True
         break
+    elif "Delayed" in data:
+        (data,futuretime) = data.split(":")
+        localtime = time.asctime( time.localtime(float(futuretime)) )
+        data = "Delayed unitl %s" % (localtime)
+        running = False
+        break
     else:
         running = False
         break
