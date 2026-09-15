@@ -4,12 +4,13 @@ import socket
 import configparser
 
 from cgi_utils import QueryForm
+from app_paths import CONFIG_FILE
 
 # Create instance of FieldStorage
 form = QueryForm()
 error = False
 config = configparser.ConfigParser()
-config_file = "/var/www/html/cgi-bin/sprinkler.config"
+config_file = CONFIG_FILE
 config.read(config_file)
 # Read in global station and program names
 station = config.get("Station GPIOs","pins").split(",")

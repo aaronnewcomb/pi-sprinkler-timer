@@ -7,6 +7,7 @@ import socketserver
 import time
 
 from gpio_backend import RelayBank
+from app_paths import CONFIG_FILE
 
 ### TBD
 # Automatic delay when precipitation is reported by forecastio
@@ -22,7 +23,7 @@ lastrun = "never"
 shutdown_requested = False
 config = configparser.ConfigParser()
 # Full path of config file
-config_file = "/var/www/html/cgi-bin/sprinkler.config"
+config_file = CONFIG_FILE
 config.read(config_file)
 # Read in global station and program names
 station = config.get("Station GPIOs","pins").split(",")

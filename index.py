@@ -9,12 +9,14 @@ import optparse
 import json
 import socket
 
+from app_paths import CONFIG_FILE
+
 config = configparser.ConfigParser()
 today = datetime.datetime.today()
 yesterday = today - datetime.timedelta(days=1)
 url = "https://api.pirateweather.net/forecast/"
 # Full path of config file
-config_file = "/var/www/html/cgi-bin/sprinkler.config"
+config_file = CONFIG_FILE
 config_lines = """# Change this to match the GPIO numbers for the pins you connect to your relay board
 [Station GPIOs]
 pins = 5,6,12,13,16,19,20,21

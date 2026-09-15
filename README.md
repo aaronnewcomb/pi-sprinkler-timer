@@ -17,80 +17,85 @@ Use a current Raspberry Pi OS release. Install the web server, Python 3, GPIO Ze
 
 ```bash
 sudo apt update
-sudo apt install lighttpd python3 python3-gpiozero python3-lgpio
+sudo apt install lighttpd apache2-utils python3 python3-gpiozero python3-lgpio
 ```
 
 GPIO access is performed only by the scheduler service. The CGI scripts send commands to that service over a loopback-only TCP socket.
 
 ## Installation
-### Configure Lighttpd to run python scripts with password protection.
+### Configure lighttpd to run Python scripts with password protection
 
-#### 1. Add the following to your /etc/lighttpd/lighttpd.conf configuration file:
+#### 1. Enable the CGI and authentication modules
 
+```bash
+sudo lighty-enable-mod cgi
+sudo lighty-enable-mod auth
 ```
-auth.debug = 2
-auth.backend = "plain"
-auth.backend.plain.userfile = "/etc/.lighttpdpassword"
-auth.require = ( "/cgi-bin/" =>
-(
-"method" => "basic",
-"realm" => "Password protected area",
-"require" => "user=admin"
+
+On Raspberry Pi OS Bookworm, the packaged CGI configuration maps `/cgi-bin/` to `/usr/lib/cgi-bin/` and uses each executable script's Python 3 shebang.
+
+#### 2. Create a digest authentication file
+
+Check that the target is new because `htdigest -c` creates or replaces the file:
+
+```bash
+sudo test ! -e /etc/lighttpd/open-sprinkler.htdigest
+sudo htdigest -c /etc/lighttpd/open-sprinkler.htdigest "Open Sprinkler" admin
+sudo chown root:www-data /etc/lighttpd/open-sprinkler.htdigest
+sudo chmod 640 /etc/lighttpd/open-sprinkler.htdigest
+```
+
+Enter the password only at the masked terminal prompts. Do not store it in this repository or in shell history.
+
+#### 3. Protect the CGI directory
+
+Create `/etc/lighttpd/conf-available/99-open-sprinkler.conf` with:
+
+```lighttpd
+auth.backend = "htdigest"
+auth.backend.htdigest.userfile = "/etc/lighttpd/open-sprinkler.htdigest"
+
+auth.require = (
+    "/cgi-bin/" => (
+        "method"  => "digest",
+        "realm"   => "Open Sprinkler",
+        "require" => "user=admin"
+    )
 )
-)
-$HTTP["url"] =~ "^/" {
-    cgi.assign = (".py" => "/usr/bin/python3")
-}
 ```
 
-Change the username from "admin" to whatever you want.
+Enable the configuration:
 
-#### 2. Create a file called /etc/.lighttpdpassword with one line in it:
-
-`admin:password`
-
-Change the password to whatever you want.
-
-#### 3. Enable CGI for lighttpd
-
-Run the following command to enable the cgi mod.
-
-`lighty-enable-mod cgi`
-
-#### 4. (optional) Add redirection to index.py
-
-Create a file in your www root directory (i.e. /var/www/html) called index.html that will redirect traffic to the index.py script.
-
-```
-<html>
-<head>
-    <meta http-equiv="refresh" content="0; url=/cgi-bin/index.py" />
-</head>
-</html>
+```bash
+sudo ln -s ../conf-available/99-open-sprinkler.conf \
+    /etc/lighttpd/conf-enabled/99-open-sprinkler.conf
 ```
 
-#### 5. Restart lighttpd
+#### 4. Validate and restart lighttpd
 
-`sudo systemctl restart lighttpd`
+```bash
+sudo lighttpd -tt -f /etc/lighttpd/lighttpd.conf
+sudo systemctl restart lighttpd
+systemctl status lighttpd --no-pager
+```
 
 ### Copy the application
 
-Clone the repository, then install the web files. The commands below use the paths expected by the included service:
+Clone the repository, then install the web files. Raspberry Pi OS maps `/cgi-bin/` to `/usr/lib/cgi-bin/`, which is also the path expected by the included service:
 
 ```bash
-sudo install -d -o www-data -g www-data /var/www/html/cgi-bin
-sudo install -m 0755 -o www-data -g www-data ./*.py /var/www/html/cgi-bin/
+sudo install -m 0755 -o root -g root ./*.py /usr/lib/cgi-bin/
 sudo install -m 0644 -o www-data -g www-data index.html /var/www/html/index.html
 ```
 
 Create the runtime configuration. This separate step prevents a deployment from overwriting an existing configuration:
 
 ```bash
-if [ ! -e /var/www/html/cgi-bin/sprinkler.config ]; then
+if [ ! -e /usr/lib/cgi-bin/sprinkler.config ]; then
     sudo install -m 0660 -o www-data -g www-data \
-        sprinkler.config.example /var/www/html/cgi-bin/sprinkler.config
+        sprinkler.config.example /usr/lib/cgi-bin/sprinkler.config
 fi
-sudoedit /var/www/html/cgi-bin/sprinkler.config
+sudoedit /usr/lib/cgi-bin/sprinkler.config
 ```
 
 GPIO numbers use Broadcom (BCM) numbering. Set the station pins for your relay board, then add the Pirate Weather API key, latitude, and longitude if weather reporting is desired.

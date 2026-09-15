@@ -7,10 +7,10 @@ Type=simple
 User=www-data
 Group=www-data
 SupplementaryGroups=gpio
-WorkingDirectory=/var/www/html/cgi-bin
+WorkingDirectory=/usr/lib/cgi-bin
 Environment=PYTHONUNBUFFERED=1
-ExecStartPre=/usr/bin/test -r /var/www/html/cgi-bin/sprinkler.config
-ExecStart=/usr/bin/python3 /var/www/html/cgi-bin/sprinkler.py
+ExecStartPre=/usr/bin/test -r /usr/lib/cgi-bin/sprinkler.config
+ExecStart=/usr/bin/python3 /usr/lib/cgi-bin/sprinkler.py
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=15s

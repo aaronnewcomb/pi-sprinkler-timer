@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from app_paths import APPLICATION_DIRECTORY, CONFIG_FILE
 from cgi_utils import QueryForm
 
 
@@ -77,6 +78,14 @@ class Python3CompatibilityTests(unittest.TestCase):
                     for alias in node.names
                 }
                 self.assertNotIn("pigpio", imported_names)
+
+    def test_config_path_defaults_to_application_directory(self):
+        self.assertEqual(Path(APPLICATION_DIRECTORY), ROOT)
+        self.assertEqual(Path(CONFIG_FILE), ROOT / "sprinkler.config")
+        for path in SCRIPTS:
+            with self.subTest(path=path.name):
+                source = path.read_text(encoding="utf-8")
+                self.assertNotIn("/var/www/html/cgi-bin", source)
 
     def test_query_form_parses_get_parameters(self):
         form = QueryForm({"QUERY_STRING": "submit=Start&duration=72&blank="})
@@ -249,6 +258,8 @@ class Python3CompatibilityTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("ExecStart=/usr/bin/python3", service)
+        self.assertIn("WorkingDirectory=/usr/lib/cgi-bin", service)
+        self.assertIn("/usr/lib/cgi-bin/sprinkler.config", service)
         self.assertIn("SupplementaryGroups=gpio", service)
         self.assertIn("Restart=on-failure", service)
         self.assertNotIn("pigpiod", service)
