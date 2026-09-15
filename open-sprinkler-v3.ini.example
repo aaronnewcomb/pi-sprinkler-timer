@@ -1,0 +1,12 @@
+[Station GPIOs]
+pins = 5,6,12,13,16,19,20,21
+names = Station 1,Station 2,Station 3,Station 4,Station 5,Station 6,Station 7,Station 8
+
+[Controller]
+# Every manual or API run must stop automatically. Maximum is two hours.
+max_duration_seconds = 7200
+
+[Server]
+# Keep the application private behind the local reverse proxy.
+host = 127.0.0.1
+port = 8000

@@ -1,5 +1,7 @@
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.venv/
 sprinkler.config
 sprinkler.config.*
 !sprinkler.config.example
