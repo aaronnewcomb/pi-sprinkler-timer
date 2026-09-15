@@ -1,6 +1,7 @@
 import asyncio
 import sys
 import unittest
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,6 +12,7 @@ try:
 
     from open_sprinkler.api import create_app
     from open_sprinkler.controller import SprinklerController, StationDefinition
+    from open_sprinkler.persistence import SQLiteRepository
 except ModuleNotFoundError:
     V3_API_DEPENDENCIES_AVAILABLE = False
 else:
@@ -50,8 +52,22 @@ def make_app():
     return create_app(controller, "test-token")
 
 
-async def request_scenario(callback):
-    app = make_app()
+def make_persistent_app():
+    repository = SQLiteRepository.open(":memory:")
+    controller = SprinklerController(
+        [
+            StationDefinition(id=1, name="Front", pin=5),
+            StationDefinition(id=2, name="Back", pin=6),
+        ],
+        FakeRelayBank(),
+        max_duration_seconds=60,
+        run_recorder=repository,
+    )
+    return create_app(controller, "test-token", repository=repository)
+
+
+async def request_scenario(callback, app_factory=make_app):
+    app = app_factory()
     transport = httpx.ASGITransport(app=app)
     async with (
         app.router.lifespan_context(app),
@@ -129,3 +145,80 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(response.status_code, 422)
 
         asyncio.run(request_scenario(scenario))
+
+    def test_schedule_crud_validates_stations(self):
+        async def scenario(client):
+            headers = {"Authorization": "Bearer test-token"}
+            schedule = {
+                "name": "Morning",
+                "enabled": True,
+                "start_time": "06:30",
+                "days_of_week": [0, 2, 4],
+                "steps": [
+                    {"station_id": 1, "duration_seconds": 30},
+                    {"station_id": 2, "duration_seconds": 45},
+                ],
+            }
+            response = await client.post(
+                "/api/v1/schedules", headers=headers, json=schedule
+            )
+            self.assertEqual(response.status_code, 201)
+            schedule_id = response.json()["id"]
+
+            response = await client.get("/api/v1/schedules", headers=headers)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(len(response.json()), 1)
+
+            schedule["name"] = "Updated"
+            response = await client.put(
+                f"/api/v1/schedules/{schedule_id}",
+                headers=headers,
+                json=schedule,
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["name"], "Updated")
+
+            invalid = dict(schedule)
+            invalid["steps"] = [{"station_id": 99, "duration_seconds": 30}]
+            response = await client.post(
+                "/api/v1/schedules", headers=headers, json=invalid
+            )
+            self.assertEqual(response.status_code, 422)
+
+            response = await client.delete(
+                f"/api/v1/schedules/{schedule_id}", headers=headers
+            )
+            self.assertEqual(response.status_code, 204)
+
+        asyncio.run(request_scenario(scenario, make_persistent_app))
+
+    def test_rain_delay_and_run_history_endpoints(self):
+        async def scenario(client):
+            headers = {"Authorization": "Bearer test-token"}
+            until = datetime.now(UTC) + timedelta(hours=12)
+            response = await client.put(
+                "/api/v1/rain-delay",
+                headers=headers,
+                json={"until": until.isoformat()},
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.json()["active"])
+
+            response = await client.post(
+                "/api/v1/stations/1/start",
+                headers=headers,
+                json={"duration_seconds": 30},
+            )
+            self.assertEqual(response.status_code, 200)
+            response = await client.post("/api/v1/stations/1/stop", headers=headers)
+            self.assertEqual(response.status_code, 200)
+
+            response = await client.get("/api/v1/history", headers=headers)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(len(response.json()), 1)
+            self.assertEqual(response.json()[0]["outcome"], "stopped")
+
+            response = await client.delete("/api/v1/rain-delay", headers=headers)
+            self.assertEqual(response.status_code, 204)
+
+        asyncio.run(request_scenario(scenario, make_persistent_app))

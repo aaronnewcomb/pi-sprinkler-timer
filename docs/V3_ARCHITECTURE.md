@@ -45,16 +45,20 @@ serialized asyncio command queue
 GPIO Zero + lgpio + active-low relay board
 ```
 
-## Initial API contract
+## API contract
 
-The first milestone implements:
+The first two milestones implement:
 
 - `GET /api/v1/health`, unauthenticated liveness check;
 - `GET /api/v1/status`, station and active-run state;
 - `POST /api/v1/stations/{id}/start`, start one station for a required number
   of seconds;
 - `POST /api/v1/stations/{id}/stop`, stop one station;
-- `POST /api/v1/actions/stop-all`, de-energize every relay.
+- `POST /api/v1/actions/stop-all`, de-energize every relay;
+- `GET|POST /api/v1/schedules`, list and create schedules;
+- `PUT|DELETE /api/v1/schedules/{id}`, replace or remove a schedule;
+- `GET|PUT|DELETE /api/v1/rain-delay`, inspect, set, or clear a delay;
+- `GET /api/v1/history`, retrieve bounded station-run history.
 
 Control and status endpoints require an `Authorization: Bearer` header. The
 token is read from a root-managed file, must contain at least 32 characters,
@@ -89,23 +93,32 @@ Target filesystem locations are:
 - `/var/lib/open-sprinkler/open-sprinkler.db` for schedules and run history;
 - `/run/open-sprinkler/` for temporary lgpio files.
 
-SQLite is planned for schedules, delays, controller state, and run history. It
-provides transactions and avoids concurrent INI rewrites. GPIO pin assignment
-stays in the root-managed configuration because changing it is a deployment
-operation, not routine sprinkler scheduling.
+SQLite stores schedules, delays, controller state, and run history. It provides
+transactions and avoids concurrent INI rewrites. Schedule claims are atomic
+and limited to one run per local date. A bounded grace window avoids starting a
+morning program hours late after a long outage. Any unfinished station run is
+marked `interrupted` when the application initializes after a restart.
+
+GPIO pin assignment stays in the root-managed configuration because changing
+it is a deployment operation, not routine sprinkler scheduling.
 
 ## Migration phases
 
-1. **Controller and API:** serialized commands, required automatic shutoff,
+1. **Controller and API, complete:** serialized commands, required automatic shutoff,
    bearer authentication, status, tests, and Home Assistant REST examples.
-2. **Persistence and scheduler:** SQLite schema, reliable schedule evaluation,
-   run history, rain delays, and restart recovery.
+2. **Persistence and scheduler, complete:** SQLite schema, reliable schedule
+   evaluation, run history, rain delays, and restart recovery.
 3. **Web application:** responsive interface using only `/api/v1`, with CSRF
    protection for browser sessions and no state-changing GET requests.
 4. **Deployment:** dedicated service account, systemd unit, lighttpd reverse
    proxy, HTTPS guidance, backup, and v2 data migration.
 5. **Home Assistant discovery:** optional MQTT adapter and discovered valve
    entities, without making MQTT a core dependency.
+
+Production acceptance will use a separate Raspberry Pi 4 with a clean
+Raspberry Pi OS Lite 64-bit Trixie image. The working 2.0 controller remains
+untouched until the 3.0 deployment phase passes relay tests with valve power
+disconnected.
 
 ## Explicit non-goals for the first milestone
 

@@ -28,6 +28,13 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(settings.listen_host, "127.0.0.1")
         self.assertEqual(settings.listen_port, 8000)
         self.assertEqual(settings.max_duration_seconds, 7_200)
+        self.assertEqual(settings.timezone, "UTC")
+        self.assertEqual(settings.scheduler_poll_seconds, 15)
+        self.assertEqual(settings.scheduler_grace_seconds, 300)
+        self.assertEqual(
+            settings.database_path,
+            Path("/var/lib/open-sprinkler/open-sprinkler.db"),
+        )
 
     def test_station_names_must_match_pin_count(self):
         with tempfile.TemporaryDirectory() as directory:

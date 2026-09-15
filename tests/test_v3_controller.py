@@ -36,7 +36,34 @@ class FakeRelayBank:
         self.closed = True
 
 
-def make_controller(max_duration_seconds=60):
+class FakeRunRecorder:
+    def __init__(self):
+        self.starts = []
+        self.finishes = []
+
+    def start_run(
+        self,
+        *,
+        source,
+        schedule_id,
+        station_id,
+        duration_seconds,
+        started_at=None,
+    ):
+        run_id = len(self.starts) + 1
+        self.starts.append((run_id, source, schedule_id, station_id, duration_seconds))
+        return run_id
+
+    def finish_run(self, run_id, *, outcome, ended_at=None):
+        self.finishes.append((run_id, outcome))
+
+
+class FailingFinishRecorder(FakeRunRecorder):
+    def finish_run(self, run_id, *, outcome, ended_at=None):
+        raise OSError("database unavailable")
+
+
+def make_controller(max_duration_seconds=60, run_recorder=None):
     relays = FakeRelayBank([5, 6])
     controller = SprinklerController(
         [
@@ -45,6 +72,7 @@ def make_controller(max_duration_seconds=60):
         ],
         relays,
         max_duration_seconds=max_duration_seconds,
+        run_recorder=run_recorder,
     )
     return controller, relays
 
@@ -82,13 +110,16 @@ class ControllerTests(unittest.TestCase):
 
     def test_station_stops_automatically_at_duration_limit(self):
         async def scenario():
-            controller, relays = make_controller()
+            recorder = FakeRunRecorder()
+            controller, relays = make_controller(run_recorder=recorder)
             await controller.start()
-            await controller.start_station(1, 1)
-            await asyncio.sleep(1.1)
+            started = await controller.start_station(1, 1)
+            outcome = await controller.wait_for_run(started.active_run_id)
             status = await controller.status()
+            self.assertEqual(outcome, "completed")
             self.assertIsNone(status.active_station_id)
             self.assertEqual(relays.states, {5: False, 6: False})
+            self.assertEqual(recorder.finishes, [(1, "completed")])
             await controller.close()
 
         asyncio.run(scenario())
@@ -101,6 +132,25 @@ class ControllerTests(unittest.TestCase):
                 await controller.start_station(1, 11)
             with self.assertRaisesRegex(ValueError, "does not exist"):
                 await controller.start_station(99, 5)
+            await controller.close()
+
+        asyncio.run(scenario())
+
+    def test_persistence_failure_does_not_leave_controller_state_active(self):
+        async def scenario():
+            controller, relays = make_controller(run_recorder=FailingFinishRecorder())
+            await controller.start()
+            started = await controller.start_station(1, 30)
+            waiter = asyncio.create_task(controller.wait_for_run(started.active_run_id))
+            await asyncio.sleep(0)
+            with self.assertRaisesRegex(OSError, "database unavailable"):
+                await controller.stop_station(1)
+
+            self.assertEqual(await waiter, "failed")
+            status = await controller.status()
+            self.assertIsNone(status.active_station_id)
+            self.assertIsNone(status.active_run_id)
+            self.assertEqual(relays.states, {5: False, 6: False})
             await controller.close()
 
         asyncio.run(scenario())

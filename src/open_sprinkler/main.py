@@ -10,7 +10,9 @@ import uvicorn
 from .api import create_app
 from .config import load_settings, read_api_token
 from .controller import SprinklerController
+from .persistence import SQLiteRepository
 from .relay import GPIOZeroRelayBank
+from .scheduler import ScheduleRunner
 
 
 def main() -> None:
@@ -28,13 +30,32 @@ def main() -> None:
     args = parser.parse_args()
 
     settings = load_settings(args.config)
-    relays = GPIOZeroRelayBank([station.pin for station in settings.stations])
+    api_token = read_api_token(args.api_token_file)
+    repository = SQLiteRepository.open(settings.database_path)
+    try:
+        relays = GPIOZeroRelayBank([station.pin for station in settings.stations])
+    except Exception:
+        repository.close()
+        raise
     controller = SprinklerController(
         settings.stations,
         relays,
         max_duration_seconds=settings.max_duration_seconds,
+        run_recorder=repository,
     )
-    app = create_app(controller, read_api_token(args.api_token_file))
+    scheduler = ScheduleRunner(
+        repository,
+        controller,
+        timezone=settings.timezone,
+        poll_seconds=settings.scheduler_poll_seconds,
+        grace_seconds=settings.scheduler_grace_seconds,
+    )
+    app = create_app(
+        controller,
+        api_token,
+        repository=repository,
+        scheduler=scheduler,
+    )
 
     uvicorn.run(
         app,

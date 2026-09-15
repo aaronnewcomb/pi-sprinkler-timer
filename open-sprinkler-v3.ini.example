@@ -10,3 +10,13 @@ max_duration_seconds = 7200
 # Keep the application private behind the local reverse proxy.
 host = 127.0.0.1
 port = 8000
+
+[Storage]
+database_path = /var/lib/open-sprinkler/open-sprinkler.db
+
+[Scheduler]
+# Use an IANA timezone name. Monday is day 0 in API schedule definitions.
+timezone = America/Los_Angeles
+poll_seconds = 15
+# Run a schedule only within five minutes of its configured start time.
+grace_seconds = 300

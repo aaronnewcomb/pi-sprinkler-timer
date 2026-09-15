@@ -14,6 +14,7 @@ rest:
         value_template: "{{ value_json.active_station_id | default('none', true) }}"
         json_attributes:
           - stations
+          - active_run_id
           - active_until
 
 rest_command:

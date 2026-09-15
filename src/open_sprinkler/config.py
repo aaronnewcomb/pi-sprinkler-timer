@@ -5,6 +5,7 @@ from __future__ import annotations
 import configparser
 from dataclasses import dataclass
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from .controller import StationDefinition
 
@@ -15,6 +16,10 @@ class RuntimeSettings:
     max_duration_seconds: int
     listen_host: str
     listen_port: int
+    database_path: Path
+    timezone: str
+    scheduler_poll_seconds: int
+    scheduler_grace_seconds: int
 
 
 def load_settings(path: Path) -> RuntimeSettings:
@@ -34,14 +39,33 @@ def load_settings(path: Path) -> RuntimeSettings:
         StationDefinition(id=index, name=name, pin=pin)
         for index, (name, pin) in enumerate(zip(names, pins, strict=True), start=1)
     ]
-    return RuntimeSettings(
+    timezone = parser.get("Scheduler", "timezone", fallback="UTC")
+    ZoneInfo(timezone)
+    settings = RuntimeSettings(
         stations=stations,
         max_duration_seconds=parser.getint(
             "Controller", "max_duration_seconds", fallback=7_200
         ),
         listen_host=parser.get("Server", "host", fallback="127.0.0.1"),
         listen_port=parser.getint("Server", "port", fallback=8000),
+        database_path=Path(
+            parser.get(
+                "Storage",
+                "database_path",
+                fallback="/var/lib/open-sprinkler/open-sprinkler.db",
+            )
+        ),
+        timezone=timezone,
+        scheduler_poll_seconds=parser.getint("Scheduler", "poll_seconds", fallback=15),
+        scheduler_grace_seconds=parser.getint(
+            "Scheduler", "grace_seconds", fallback=300
+        ),
     )
+    if settings.scheduler_poll_seconds < 1:
+        raise ValueError("Scheduler poll interval must be positive")
+    if settings.scheduler_grace_seconds < 0:
+        raise ValueError("Scheduler grace period must not be negative")
+    return settings
 
 
 def read_api_token(path: Path) -> str:

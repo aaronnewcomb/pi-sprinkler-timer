@@ -7,10 +7,10 @@ The proven `v2.0.0` release and the installation procedure below remain the
 recommended version for real sprinkler hardware. Version 3.0 is being built on
 the `develop/v3` branch and must not replace a working 2.0 controller yet.
 
-The first 3.0 milestone adds a single-owner relay controller, a versioned REST
-API, bearer-token authentication, automatic shutoff for API runs, and a starter
-Home Assistant configuration. See [the 3.0 architecture and phased
-roadmap](docs/V3_ARCHITECTURE.md).
+The first two 3.0 milestones add a single-owner relay controller, a versioned
+REST API, bearer-token authentication, automatic shutoff, transactional SQLite
+schedules, rain delays, run history, and a starter Home Assistant
+configuration. See [the 3.0 architecture and phased roadmap](docs/V3_ARCHITECTURE.md).
 
 Develop and test 3.0 in an isolated environment with
 [uv](https://docs.astral.sh/uv/):
@@ -20,10 +20,10 @@ uv sync
 uv run pytest
 ```
 
-This runs the retained 2.0 regression suite and the new controller and API
-tests together. The API milestone is not a complete 3.0 installation yet;
-scheduling, SQLite persistence, the replacement web interface, and production
-deployment are the next phases.
+This runs the retained 2.0 regression suite and the new controller, persistence,
+scheduler, and API tests together. Version 3.0 is not a complete installation
+yet; the replacement web interface and production deployment are the next
+phases.
 
 (If you are looking for a more turnkey and feature rich solution for your RPi, I highly recommend [OpenSprinkler Pi](https://opensprinkler.com/product/opensprinkler-pi/) instead.)
 
