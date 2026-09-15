@@ -14,6 +14,20 @@ documentation or code change is verified on target hardware.
 - `pigpiod` is installed but disabled and inactive
 - TCP port 5555 was free before installation
 - The 24 VAC valve transformer remained disconnected
+- No existing Open Sprinkler Python files or `sprinkler.config` were present
+  under `/usr/lib/cgi-bin/` before deployment.
+- `/var/www/html/index.html` did not exist before deployment, so installing the
+  application landing page does not replace a packaged or user-created file on
+  this test Pi.
+- The deployed Python files have the expected ownership and executable modes,
+  and all installed copies compile and are readable as `www-data`.
+- The newly created runtime configuration is owned by `www-data:www-data` with
+  mode `0660`; target validation found 8 unique BCM station pins and all 4
+  referenced program sections.
+- The systemd unit installed as a new file, passed `systemd-analyze verify`,
+  and remained disabled and inactive before hardware acceptance. `pigpiod` was
+  disabled and inactive, no legacy sprinkler entry was present in `rc.local`,
+  and TCP port 5555 remained free.
 
 ## Findings
 
@@ -95,3 +109,23 @@ documentation or code change is verified on target hardware.
   gone, and lighttpd restarts successfully on the test Pi.
 - **README impact:** Include the explicit authentication backend module in the
   site configuration example.
+
+### lgpio requires a writable process working directory
+
+- **Expected:** The systemd service starts as `www-data` while application
+  files under `/usr/lib/cgi-bin/` remain root-owned and read-only.
+- **Observed:** `lgpio` tried to create `.lgd-nfy*` notification-pipe files in
+  the process working directory. With `WorkingDirectory=/usr/lib/cgi-bin`, it
+  failed with `FileNotFoundError` after reporting that it could not set pipe
+  permissions, and systemd repeatedly restarted the daemon.
+- **Impact:** The GPIO scheduler could not start. No relay acceptance testing
+  could proceed.
+- **Resolution:** Have systemd create `/run/open-sprinkler/` with
+  `RuntimeDirectory=open-sprinkler`, run the daemon from that writable
+  directory, and keep executable and configuration paths absolute under
+  `/usr/lib/cgi-bin/`.
+- **Verification:** Regression tests and `systemd-analyze verify` pass locally.
+  Target service startup remains to be repeated after deploying the corrected
+  unit.
+- **README impact:** Explain why the runtime directory is required and retain
+  the read-only application deployment.

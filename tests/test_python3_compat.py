@@ -258,7 +258,10 @@ class Python3CompatibilityTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("ExecStart=/usr/bin/python3", service)
-        self.assertIn("WorkingDirectory=/usr/lib/cgi-bin", service)
+        self.assertIn("RuntimeDirectory=open-sprinkler", service)
+        self.assertIn("RuntimeDirectoryMode=0750", service)
+        self.assertIn("WorkingDirectory=/run/open-sprinkler", service)
+        self.assertNotIn("WorkingDirectory=/usr/lib/cgi-bin", service)
         self.assertIn("/usr/lib/cgi-bin/sprinkler.config", service)
         self.assertIn("SupplementaryGroups=gpio", service)
         self.assertIn("Restart=on-failure", service)

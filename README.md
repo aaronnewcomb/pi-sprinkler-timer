@@ -121,6 +121,11 @@ journalctl -u open-sprinkler.service -n 50 --no-pager
 
 The service runs as `www-data` with `gpio` as a supplementary group, restarts after failures, and turns all configured relays off during a normal stop. It binds its control socket to `127.0.0.1:5555`, so relay commands are not accepted from other network hosts.
 
+The unit also creates `/run/open-sprinkler/` as a private writable runtime
+directory. The `lgpio` library needs this directory for its temporary
+notification pipe; the application files under `/usr/lib/cgi-bin/` remain
+read-only.
+
 If this Pi previously used the legacy startup instructions, remove the `pigpiod &` and `sprinkler.py &` lines from `/etc/rc.local`. Also disable an existing `pigpiod` systemd service before enabling `open-sprinkler.service`. Only one scheduler process should control the relay pins.
 
 ### Give it a try
