@@ -57,9 +57,10 @@ documentation or code change is verified on target hardware.
 - **Resolution:** Install scripts and runtime configuration under
   `/usr/lib/cgi-bin/`, update the service paths, and derive the configuration
   path from each script's installed directory.
-- **Verification:** All 17 tests pass under the development Python and Python
-  3.11, and `systemd-analyze verify` accepts the unit. CGI execution remains
-  to be tested on the Pi.
+- **Verification:** All 17 tests pass under the development Python, an exact
+  Python 3.11 interpreter, and the test Pi's Python 3.11.2 runtime.
+  `systemd-analyze verify` accepts the unit. CGI execution remains to be
+  tested on the Pi.
 - **README impact:** Use the Raspberry Pi OS packaged CGI directory or clearly
   document a custom alias when another path is selected.
 
@@ -73,6 +74,24 @@ documentation or code change is verified on target hardware.
   password readable on disk.
 - **Proposed resolution:** Use a masked `htdigest` prompt and a root-owned file
   readable by the `www-data` group. Add HTTPS in a later hardening round.
-- **Verification:** Target lighttpd configuration validation is pending.
+- **Verification:** Digest authentication configuration validates without
+  warnings after explicitly loading `mod_authn_file`, and lighttpd is active
+  on the test Pi. Browser authentication remains to be tested after CGI
+  deployment.
 - **README impact:** Replace the plaintext backend instructions and warn that
   authentication without HTTPS is suitable only for a trusted test network.
+
+### The htdigest backend requires an explicit `mod_authn_file` module
+
+- **Expected:** Enabling lighttpd's packaged `auth` module is sufficient for
+  an `auth.backend = "htdigest"` site configuration.
+- **Observed:** Configuration validation succeeded but warned that a future
+  lighttpd 1.4.x release will stop automatically loading `mod_authn_file`.
+- **Impact:** Authentication works now, but a future lighttpd update could
+  prevent the service from starting.
+- **Resolution:** Add `server.modules += ( "mod_authn_file" )` before the
+  htdigest backend settings in the Open Sprinkler configuration.
+- **Verification:** `lighttpd -tt` completes without output, the warning is
+  gone, and lighttpd restarts successfully on the test Pi.
+- **README impact:** Include the explicit authentication backend module in the
+  site configuration example.

@@ -52,6 +52,8 @@ Enter the password only at the masked terminal prompts. Do not store it in this 
 Create `/etc/lighttpd/conf-available/99-open-sprinkler.conf` with:
 
 ```lighttpd
+server.modules += ( "mod_authn_file" )
+
 auth.backend = "htdigest"
 auth.backend.htdigest.userfile = "/etc/lighttpd/open-sprinkler.htdigest"
 
