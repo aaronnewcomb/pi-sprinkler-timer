@@ -2,3 +2,4 @@ __pycache__/
 *.py[cod]
 sprinkler.config
 sprinkler.config.*
+!sprinkler.config.example

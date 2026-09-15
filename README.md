@@ -1,23 +1,28 @@
 # pi-sprinkler-timer
-A DIY web driven scheduler system for the Raspberry Pi written in Python 3 using lighttpd and pigpio. This is typically used to support an irrigation system with multiple sprinkler valves, but you could also use it to control other devices.
+A DIY web-driven scheduler for Raspberry Pi OS, written in Python 3 and served by lighttpd. GPIO Zero controls active-low relay boards through the `lgpio` backend. The scheduler runs as a systemd service.
 
 (If you are looking for a more turnkey and feature rich solution for your RPi, I highly recommend [OpenSprinkler Pi](https://opensprinkler.com/product/opensprinkler-pi/) instead.)
 
-## Parts:
-* Raspberry Pi (or other dev board capable of running Python and Lighttpd)
- * WiFi dongle (if not using RPi v3)
+## Parts
+* Raspberry Pi
+ * Network connection
  * Power Supply for RPi
 * 24V AC Sprinkler Power Supply
 * Sprinkler Valves
 * 5V Relay Board
 
-## Pre-requisites:
-* Lighttpd must be installed
-* Python 3 must be installed
-* [Pigpio](http://abyz.co.uk/rpi/pigpio/) and its Python 3 module must be installed
-* RPi must be configured to connect to your network
+## Prerequisites
 
-## Installation:
+Use a current Raspberry Pi OS release. Install the web server, Python 3, GPIO Zero, and the `lgpio` pin library from APT:
+
+```bash
+sudo apt update
+sudo apt install lighttpd python3 python3-gpiozero python3-lgpio
+```
+
+GPIO access is performed only by the scheduler service. The CGI scripts send commands to that service over a loopback-only TCP socket.
+
+## Installation
 ### Configure Lighttpd to run python scripts with password protection.
 
 #### 1. Add the following to your /etc/lighttpd/lighttpd.conf configuration file:
@@ -46,7 +51,7 @@ Change the username from "admin" to whatever you want.
 
 Change the password to whatever you want.
 
-#### 3. Enable cgi for Lighttpd
+#### 3. Enable CGI for lighttpd
 
 Run the following command to enable the cgi mod.
 
@@ -64,39 +69,66 @@ Create a file in your www root directory (i.e. /var/www/html) called index.html 
 </html>
 ```
 
-#### 5. Restart Lighttpd.
+#### 5. Restart lighttpd
 
-`sudo service lighttpd restart`
+`sudo systemctl restart lighttpd`
 
-### Copy scripts
-#### 1. Download this github repository and copy index.html to your web root directory.
-#### 2. Copy all the other ".py" scripts to your cgi-bin directory.
-#### 3. Give files in your cgi-bin location execute privilages and the correct ownership.
+### Copy the application
 
-```
-sudo chmod +x /path-to-your-cgi-bin-directory/*.py
-sudo chown www-data:www-data /path-to-your-cgi-bin-directory/*.py
-```
+Clone the repository, then install the web files. The commands below use the paths expected by the included service:
 
-#### 4. Add pigpiod and the scheduler to rc.local so they start when the Pi boots up.
-
-`sudo nano /etc/rc.local`
-
-Add ...
-
-```
-pigpiod &
-/usr/bin/python3 /<path-to-your-cgi-bin-directory>/sprinkler.py &
+```bash
+sudo install -d -o www-data -g www-data /var/www/html/cgi-bin
+sudo install -m 0755 -o www-data -g www-data ./*.py /var/www/html/cgi-bin/
+sudo install -m 0644 -o www-data -g www-data index.html /var/www/html/index.html
 ```
 
-... before the "exit" statement. Reboot your Raspberry Pi.
+Create the runtime configuration. This separate step prevents a deployment from overwriting an existing configuration:
+
+```bash
+if [ ! -e /var/www/html/cgi-bin/sprinkler.config ]; then
+    sudo install -m 0660 -o www-data -g www-data \
+        sprinkler.config.example /var/www/html/cgi-bin/sprinkler.config
+fi
+sudoedit /var/www/html/cgi-bin/sprinkler.config
+```
+
+GPIO numbers use Broadcom (BCM) numbering. Set the station pins for your relay board, then add the Pirate Weather API key, latitude, and longitude if weather reporting is desired.
+
+### Install the systemd service
+
+Install and start the scheduler service:
+
+```bash
+sudo install -m 0644 systemd/open-sprinkler.service /etc/systemd/system/open-sprinkler.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now open-sprinkler.service
+```
+
+Check its status and recent logs:
+
+```bash
+systemctl status open-sprinkler.service
+journalctl -u open-sprinkler.service -n 50 --no-pager
+```
+
+The service runs as `www-data` with `gpio` as a supplementary group, restarts after failures, and turns all configured relays off during a normal stop. It binds its control socket to `127.0.0.1:5555`, so relay commands are not accepted from other network hosts.
+
+If this Pi previously used the legacy startup instructions, remove the `pigpiod &` and `sprinkler.py &` lines from `/etc/rc.local`. Also disable an existing `pigpiod` systemd service before enabling `open-sprinkler.service`. Only one scheduler process should control the relay pins.
 
 ### Give it a try
-Reboot your RPi. Open a web browser and type in the IP address of your RPi. You should see the index.py page.
+Open a web browser and enter the IP address of the Raspberry Pi. You should see the `index.py` page.
 ![pi-sprinker-timer main web page](/images/home.png)
 
-### Add your GPIO pins
-The first time you connect to the web page a new config file should be created. Open the `sprinkler.config` file, change the values in `[Station GPIOs]` to match the GPIO pins connected to your relay board, and add your Pirate Weather API key, latitude, and longitude under `[forecastio]`.
+### Test before connecting valves
+
+Run the software tests from the repository checkout:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
+```
+
+With the valve power disconnected, use **Manual Control** to activate each station and confirm the corresponding relay indicator switches on and off. Active-low boards should remain off while the service starts and stops.
 
 ### Enable reboot and shutdown from the web page
 Add the "www-data" user to the /etc/sudoers file by using visudo. NOTE: This weakens the security of your system in that a knowledgeable person might be able to reboot or shutdown your RPi. You have been warned.

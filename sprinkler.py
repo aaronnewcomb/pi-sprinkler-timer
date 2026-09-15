@@ -1,12 +1,12 @@
 #!/usr/bin/python3
 
-import pigpio
-#from datetime import datetime
-import time
-import os
-import socketserver
-import threading
 import configparser
+import os
+import signal
+import socketserver
+import time
+
+from gpio_backend import RelayBank
 
 ### TBD
 # Automatic delay when precipitation is reported by forecastio
@@ -17,9 +17,9 @@ enabled = True
 delay = False
 test = False
 test_time = 0
-pi = pigpio.pi()
 futuretime = time.time()
 lastrun = "never"
+shutdown_requested = False
 config = configparser.ConfigParser()
 # Full path of config file
 config_file = "/var/www/html/cgi-bin/sprinkler.config"
@@ -28,6 +28,7 @@ config.read(config_file)
 station = config.get("Station GPIOs","pins").split(",")
 station = list(map(int,station))
 program = config.get("Programs","names").split(",")
+relays = RelayBank(station)
 
 # Create some custom threading classes here
 class ThreadedServer(socketserver.BaseRequestHandler):
@@ -49,14 +50,14 @@ class ThreadedServer(socketserver.BaseRequestHandler):
                 print("received " + data + " from client")
                 # Set the response based on the data
                 (command,var) = data.split(":", 1)
-                if "test_run" in command:
+                if command == "test_run":
                     if var == "cancel":
                         running = False
                     else:
                         running = True
                         test = True
                         test_time = int(var)
-                elif "status" in data:
+                elif command == "status":
                     if enabled == False:
                         # send the message to the client
                         self.request.sendall(("Disabled. Last run %s" % (lastrun)).encode("utf-8"))
@@ -66,15 +67,36 @@ class ThreadedServer(socketserver.BaseRequestHandler):
                         self.request.sendall(("Delayed:%s" % str(futuretime)).encode("utf-8"))
                     else:
                         self.request.sendall(("Stopped. Last run %s" % (lastrun)).encode("utf-8"))
-                elif "pause" in data:
+                elif command == "station_status":
+                    states = [
+                        "%s=%s" % (pin, "on" if relays.is_on(pin) else "off")
+                        for pin in station
+                    ]
+                    self.request.sendall(",".join(states).encode("utf-8"))
+                elif command == "station_on":
+                    pin = int(var)
+                    if pin not in station or running:
+                        self.request.sendall("error".encode("utf-8"))
+                    else:
+                        relays.all_off()
+                        relays.on(pin)
+                        self.request.sendall("ok".encode("utf-8"))
+                elif command == "station_off":
+                    pin = int(var)
+                    if pin not in station or running:
+                        self.request.sendall("error".encode("utf-8"))
+                    else:
+                        relays.off(pin)
+                        self.request.sendall("ok".encode("utf-8"))
+                elif command == "pause":
                     enabled = False
-                elif "resume" in data:
+                elif command == "resume":
                     enabled = True
                     delay = False
-                elif "delay" in data:
+                elif command == "delay":
                     futuretime = time.time() + (int(var) * 3600)
                     delay = True
-                elif "config_updated" in data:
+                elif command == "config_updated":
                     config.read(config_file)
                 else:
                     self.request.sendall("error".encode("utf-8"))
@@ -85,28 +107,24 @@ class ThreadedServer(socketserver.BaseRequestHandler):
         self.request.close()
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    allow_reuse_address = True
     timeout = 5
 
-# Setup GPIO pins
-for i in station:
-    pi.set_mode(i, pigpio.OUTPUT)
-
 def all_off():
-    for i in station:
-        pi.write(i, 1)
+    relays.all_off()
 
 # Called from manual.py through socket
 def test_run(t):
     global running
     for i in station:
         if running == True:
-            pi.write(i, 0)
+            relays.on(i)
             now = time.time()
             while time.time() < now + t:
                 server.handle_request()
                 if running == False:
                     break
-            pi.write(i, 1)
+            relays.off(i)
             time.sleep(.25)
     all_off()
     running = False
@@ -122,41 +140,51 @@ def run_program(prog):
     config.read(config_file)
     for i in range(0, len(station)):
         if running == True:
-            pi.write(station[i], 0)
+            relays.on(station[i])
             now = time.time()
             while time.time() < now + (int(config.get(prog, "sta_%s_dur" % (i+1)))* 60):
                 server.handle_request()
                 if running == False:
                     break
-            pi.write(station[i], 1)
+            relays.off(station[i])
             time.sleep(.25)
     all_off()
     running = False
     print("Program finished.")
 
+def request_shutdown(_signum, _frame):
+    global shutdown_requested
+    global running
+    shutdown_requested = True
+    running = False
+
+
 all_off()
+signal.signal(signal.SIGTERM, request_shutdown)
+signal.signal(signal.SIGINT, request_shutdown)
 print('Press Ctrl+{0} to exit'.format('Break' if os.name == 'nt' else 'C'))
-server = ThreadedTCPServer(('',5555), ThreadedServer)
+server = ThreadedTCPServer(('127.0.0.1', 5555), ThreadedServer)
 
-while True:
-    server.handle_request()
-    print ("request timeout")
-    if test == True:
-        test_run(test_time)
-    if enabled == True and delay == False:
-        for i in program:
-            if config.has_option(i,"enable") and config.get(i,"enable") == "yes" and time.strftime("%H:%M") == config.get(i,"start"):
-                # if it hasent run in [freq] days
-                if time.time() > int(config.get(i, "lastrun")) + (int(config.get(i, "freq")) * 86400):
-                    print("Program starting.")
-                    running = True
-                    run_program(i)
-                else:
-                    print("Now = %s\nLastrun = %s\nFrequency = %s" % (time.time(),int(config.get(i, "lastrun")),(int(config.get(i, "freq")) * 86400)))
-                    print("Program already run. Skipping program.")
+try:
+    while not shutdown_requested:
+        server.handle_request()
+        if test == True:
+            test_run(test_time)
+        if enabled == True and delay == False:
+            for i in program:
+                if config.has_option(i,"enable") and config.get(i,"enable") == "yes" and time.strftime("%H:%M") == config.get(i,"start"):
+                    # if it hasent run in [freq] days
+                    if time.time() > int(config.get(i, "lastrun")) + (int(config.get(i, "freq")) * 86400):
+                        print("Program starting.")
+                        running = True
+                        run_program(i)
+                    else:
+                        print("Now = %s\nLastrun = %s\nFrequency = %s" % (time.time(),int(config.get(i, "lastrun")),(int(config.get(i, "freq")) * 86400)))
+                        print("Program already run. Skipping program.")
 
-    if time.time() >= futuretime and delay == True:
-        delay = False
-
-all_off()
-client.close()
+        if time.time() >= futuretime and delay == True:
+            delay = False
+finally:
+    all_off()
+    server.server_close()
+    relays.close()

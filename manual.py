@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 
-import pigpio
 import socket
 import time
 import configparser
@@ -17,60 +16,53 @@ config.read(config_file)
 station = config.get("Station GPIOs","pins").split(",")
 station = list(map(int,station))
 program = config.get("Programs","names").split(",")
-pi = pigpio.pi()
+
+
+def scheduler_command(command, response_size=64):
+    clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        clientsocket.connect(('localhost', 5555))
+        clientsocket.sendall(command.encode("utf-8"))
+        if response_size:
+            return clientsocket.recv(response_size).decode("utf-8")
+    finally:
+        clientsocket.close()
 
 if form.getfirst("test") == "Start":
     duration = form.getvalue('duration')
     if duration:
-        clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        clientsocket.connect(('localhost', 5555))
-        clientsocket.sendall(("test_run:%s" % duration).encode("utf-8"))
-        clientsocket.close()
+        scheduler_command("test_run:%s" % duration, response_size=0)
     else:
         error = True
 elif form.getfirst("test") == "Cancel":
-    clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    clientsocket.connect(('localhost', 5555))
-    clientsocket.sendall("test_run:cancel".encode("utf-8"))
-    clientsocket.close()
+    scheduler_command("test_run:cancel", response_size=0)
 
 time.sleep(.25)
-clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-clientsocket.connect(('localhost', 5555))
-clientsocket.sendall("status:0".encode("utf-8"))
-while True:
-    data = clientsocket.recv(64).decode("utf-8")
-    if data == "Running":
-        running = True
-        break
-    elif "Delayed" in data:
-        (data,futuretime) = data.split(":")
-        localtime = time.asctime( time.localtime(float(futuretime)) )
-        data = "Delayed until %s" % (localtime)
-        running = False
-        break
-    else:
-        running = False
-        break
-    if not data:
-        break
-clientsocket.close()
+data = scheduler_command("status:0")
+if data == "Running":
+    running = True
+elif "Delayed" in data:
+    (data,futuretime) = data.split(":")
+    localtime = time.asctime(time.localtime(float(futuretime)))
+    data = "Delayed until %s" % localtime
+    running = False
+else:
+    running = False
 
-status = {}
+if form.getfirst("test") != "Start" and running == False:
+    for pin in station:
+        requested_state = form.getfirst(str(pin))
+        if requested_state == "ON":
+            scheduler_command("station_on:%s" % pin)
+        elif requested_state == "OFF":
+            scheduler_command("station_off:%s" % pin)
 
-for i in station:
-    pi.set_mode(i, pigpio.OUTPUT)
-    if form.getfirst("test") != "Start" and running == False:
-        if form.getfirst(str(i)) == "ON":
-            pi.write(i, 0)
-        else:
-            pi.write(i, 1)
-
-for i in station:
-    if pi.read(i) == 0:
-        status[i] = "green"
-    else:
-        status[i] = ""
+status_response = scheduler_command("station_status:0", response_size=1024)
+station_states = dict(item.split("=", 1) for item in status_response.split(","))
+status = {
+    pin: "green" if station_states.get(str(pin)) == "on" else ""
+    for pin in station
+}
 
 print("Content-type: text/html\n\n")
 print("""

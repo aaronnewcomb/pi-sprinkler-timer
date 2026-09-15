@@ -59,6 +59,18 @@ class Python3CompatibilityTests(unittest.TestCase):
                 self.assertFalse(legacy_names & (imported_names | referenced_names))
                 self.assertFalse(removed_modules & imported_names)
 
+    def test_pigpio_dependency_is_absent(self):
+        for path in SCRIPTS:
+            with self.subTest(path=path.name):
+                tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+                imported_names = {
+                    alias.name
+                    for node in ast.walk(tree)
+                    if isinstance(node, (ast.Import, ast.ImportFrom))
+                    for alias in node.names
+                }
+                self.assertNotIn("pigpio", imported_names)
+
     def test_query_form_parses_get_parameters(self):
         form = QueryForm({"QUERY_STRING": "submit=Start&duration=72&blank="})
         self.assertEqual(form.getfirst("submit"), "Start")
@@ -84,6 +96,12 @@ class Python3CompatibilityTests(unittest.TestCase):
         self.assertEqual(config.get("forecastio", "lat"), "")
         self.assertEqual(config.get("forecastio", "lng"), "")
         self.assertEqual(len(config.get("Station GPIOs", "pins").split(",")), 8)
+
+        example = configparser.ConfigParser()
+        example.read(str(ROOT / "sprinkler.config.example"), encoding="utf-8")
+        self.assertEqual(config.sections(), example.sections())
+        for section in config.sections():
+            self.assertEqual(dict(config.items(section)), dict(example.items(section)))
 
     def test_socket_writes_explicitly_encode_text(self):
         for path in SCRIPTS:
@@ -141,6 +159,95 @@ class Python3CompatibilityTests(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             namespace["ThreadedServer"](request, ("local", 0), object())
         self.assertEqual(request.sent, [b"Stopped. Last run never"])
+
+    def test_scheduler_reports_and_controls_station_relays(self):
+        source = (ROOT / "sprinkler.py").read_text(encoding="utf-8")
+        tree = ast.parse(source, filename="sprinkler.py")
+        handler_node = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "ThreadedServer"
+        )
+
+        class FakeRelays:
+            def __init__(self):
+                self.states = {5: False, 6: False}
+
+            def is_on(self, pin):
+                return self.states[pin]
+
+            def on(self, pin):
+                self.states[pin] = True
+
+            def off(self, pin):
+                self.states[pin] = False
+
+            def all_off(self):
+                for pin in self.states:
+                    self.states[pin] = False
+
+        relays = FakeRelays()
+        namespace = {
+            "socketserver": socketserver,
+            "station": [5, 6],
+            "relays": relays,
+            "running": False,
+            "enabled": True,
+            "delay": False,
+            "futuretime": 123.0,
+            "lastrun": "never",
+            "test": False,
+            "test_time": 0,
+        }
+        exec(compile(ast.Module(body=[handler_node]), "sprinkler.py", "exec"), namespace)
+
+        class FakeRequest:
+            def __init__(self, command):
+                self.received = [command.encode("utf-8"), b""]
+                self.sent = []
+
+            def recv(self, _size):
+                return self.received.pop(0)
+
+            def sendall(self, data):
+                self.sent.append(data)
+
+            def close(self):
+                pass
+
+        def request(command):
+            fake_request = FakeRequest(command)
+            with contextlib.redirect_stdout(io.StringIO()):
+                namespace["ThreadedServer"](
+                    fake_request, ("local", 0), object()
+                )
+            return fake_request.sent
+
+        self.assertEqual(request("station_status:0"), [b"5=off,6=off"])
+        self.assertEqual(request("station_on:5"), [b"ok"])
+        self.assertTrue(relays.states[5])
+        self.assertEqual(request("station_status:0"), [b"5=on,6=off"])
+        self.assertEqual(request("station_on:6"), [b"ok"])
+        self.assertFalse(relays.states[5])
+        self.assertTrue(relays.states[6])
+        self.assertEqual(request("station_off:6"), [b"ok"])
+        self.assertFalse(relays.states[6])
+        self.assertEqual(request("station_on:5"), [b"ok"])
+        self.assertEqual(request("station_off:5"), [b"ok"])
+        self.assertFalse(relays.states[5])
+        self.assertEqual(request("station_on:99"), [b"error"])
+
+    def test_systemd_service_uses_python3_and_gpio_group(self):
+        service = (ROOT / "systemd" / "open-sprinkler.service").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("ExecStart=/usr/bin/python3", service)
+        self.assertIn("SupplementaryGroups=gpio", service)
+        self.assertIn("Restart=on-failure", service)
+        self.assertNotIn("pigpiod", service)
+
+        scheduler = (ROOT / "sprinkler.py").read_text(encoding="utf-8")
+        self.assertIn("ThreadedTCPServer(('127.0.0.1', 5555)", scheduler)
 
     def test_index_renders_without_weather_configuration(self):
         template = self.config_template("index.py")
