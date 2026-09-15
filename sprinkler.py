@@ -1,12 +1,12 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import pigpio
 #from datetime import datetime
 import time
 import os
-import SocketServer
+import socketserver
 import threading
-import ConfigParser
+import configparser
 
 ### TBD
 # Automatic delay when precipitation is reported by forecastio
@@ -20,17 +20,17 @@ test_time = 0
 pi = pigpio.pi()
 futuretime = time.time()
 lastrun = "never"
-config = ConfigParser.ConfigParser()
+config = configparser.ConfigParser()
 # Full path of config file
 config_file = "/var/www/html/cgi-bin/sprinkler.config"
 config.read(config_file)
 # Read in global station and program names
 station = config.get("Station GPIOs","pins").split(",")
-station = map(int,station)
+station = list(map(int,station))
 program = config.get("Programs","names").split(",")
 
 # Create some custom threading classes here
-class ThreadedServer(SocketServer.BaseRequestHandler):
+class ThreadedServer(socketserver.BaseRequestHandler):
     def handle(self):
         #self.request.timeout(5)
         global running
@@ -41,13 +41,14 @@ class ThreadedServer(SocketServer.BaseRequestHandler):
         global test
         global test_time
         data = "dummy"
-        print "Client connected with ", self.client_address
+        print("Client connected with ", self.client_address)
         while len(data):
-            data = self.request.recv(1024)
-            if data:
-                print "received " + data + " from client"
+            raw_data = self.request.recv(1024)
+            if raw_data:
+                data = raw_data.decode("utf-8")
+                print("received " + data + " from client")
                 # Set the response based on the data
-                (command,var) = data.split(":")
+                (command,var) = data.split(":", 1)
                 if "test_run" in command:
                     if var == "cancel":
                         running = False
@@ -58,13 +59,13 @@ class ThreadedServer(SocketServer.BaseRequestHandler):
                 elif "status" in data:
                     if enabled == False:
                         # send the message to the client
-                        self.request.send("Disabled. Last run %s" % (lastrun))
+                        self.request.sendall(("Disabled. Last run %s" % (lastrun)).encode("utf-8"))
                     elif running:
-                        self.request.send("Running")
+                        self.request.sendall("Running".encode("utf-8"))
                     elif delay:
-                        self.request.send("Delayed:%s" % str(futuretime))
+                        self.request.sendall(("Delayed:%s" % str(futuretime)).encode("utf-8"))
                     else:
-                        self.request.send("Stopped. Last run %s" % (lastrun))
+                        self.request.sendall(("Stopped. Last run %s" % (lastrun)).encode("utf-8"))
                 elif "pause" in data:
                     enabled = False
                 elif "resume" in data:
@@ -76,12 +77,14 @@ class ThreadedServer(SocketServer.BaseRequestHandler):
                 elif "config_updated" in data:
                     config.read(config_file)
                 else:
-                    self.request.send("error")
+                    self.request.sendall("error".encode("utf-8"))
+            else:
+                data = ""
 
-        print "Client exited"
+        print("Client exited")
         self.request.close()
 
-class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     timeout = 5
 
 # Setup GPIO pins
@@ -113,11 +116,11 @@ def run_program(prog):
     global lastrun
     lastrun = time.ctime()
     cfgfile = open(config_file,'w')
-    config.set(prog, "lastrun", int(time.time()))
+    config.set(prog, "lastrun", str(int(time.time())))
     config.write(cfgfile)
     cfgfile.close()
     config.read(config_file)
-    for i in xrange(0, len(station)):
+    for i in range(0, len(station)):
         if running == True:
             pi.write(station[i], 0)
             now = time.time()
@@ -149,7 +152,7 @@ while True:
                     running = True
                     run_program(i)
                 else:
-                    print("Now = %s\nLastrun = %s\nFrequency = %s") % (time.time(),int(config.get(i, "lastrun")),(int(config.get(i, "freq")) * 86400))
+                    print("Now = %s\nLastrun = %s\nFrequency = %s" % (time.time(),int(config.get(i, "lastrun")),(int(config.get(i, "freq")) * 86400)))
                     print("Program already run. Skipping program.")
 
     if time.time() >= futuretime and delay == True:

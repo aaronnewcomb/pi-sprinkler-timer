@@ -1,19 +1,19 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
-import cgi
-import cgitb; cgitb.enable()  # for troubleshooting
 import socket
-import ConfigParser
+import configparser
+
+from cgi_utils import QueryForm
 
 # Create instance of FieldStorage
-form = cgi.FieldStorage()
+form = QueryForm()
 error = False
-config = ConfigParser.ConfigParser()
+config = configparser.ConfigParser()
 config_file = "/var/www/html/cgi-bin/sprinkler.config"
 config.read(config_file)
 # Read in global station and program names
 station = config.get("Station GPIOs","pins").split(",")
-station = map(int,station)
+station = list(map(int,station))
 program = config.get("Programs","names").split(",")
 
 clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -21,7 +21,7 @@ clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 def notify():
     # Let the daemon know to rescan the config file
     clientsocket.connect(('localhost', 5555))
-    clientsocket.send('config_updated:0')
+    clientsocket.sendall('config_updated:0'.encode('utf-8'))
     clientsocket.close()
 
 def update_config(prog):
@@ -51,8 +51,8 @@ if form.getfirst("submit"):
 
 ### TODO: Read in existing values and populate if exist
 
-print "Content-type: text/html\n\n"
-print """
+print("Content-type: text/html\n\n")
+print("""
 <html>
 <head>
 <title>Pi Sprinkler - Program Editor</title>
@@ -71,45 +71,45 @@ table, th, td {
 </table>
 </p>
 <h2>Program Editor</h2>
-"""
-for x in xrange(0, len(program)):
-    print """
+""")
+for x in range(0, len(program)):
+    print("""
     <h3 style="text-decoration: underline">Program Number %s</h3>
     <form action="/cgi-bin/program.py" method="get">
-    """ % (x+1)
+    """ % (x+1))
     if config.has_option(program[x],"enable") and config.get(program[x],"enable") == "yes":
-        print """<p style="font-weight: bold">Enable: <input type="checkbox" name="enabled" value="yes" checked>"""
+        print("""<p style="font-weight: bold">Enable: <input type="checkbox" name="enabled" value="yes" checked>""")
     else:
-        print """<p style="font-weight: bold">Enable: <input type="checkbox" name="enabled" value="yes">"""
+        print("""<p style="font-weight: bold">Enable: <input type="checkbox" name="enabled" value="yes">""")
     if config.has_option(program[x],"start"):
-        print """<p style="font-weight: bold">Start Time: <input type="time" name="start_time" value="%s">""" % (config.get(program[x],"start"))
+        print("""<p style="font-weight: bold">Start Time: <input type="time" name="start_time" value="%s">""" % (config.get(program[x],"start")))
     else:
-        print """<p style="font-weight: bold">Start Time: <input type="time" name="start_time">"""
-    print """<p style="font-weight: bold">Frequncy:<br>"""
+        print("""<p style="font-weight: bold">Start Time: <input type="time" name="start_time">""")
+    print("""<p style="font-weight: bold">Frequncy:<br>""")
     if config.has_option(program[x],"freq") and config.get(program[x],"freq") == "1":
-        print """<input type="radio" name="freq" value="1" checked>Every 1 Day<br>"""
+        print("""<input type="radio" name="freq" value="1" checked>Every 1 Day<br>""")
     else:
-        print"""<input type="radio" name="freq" value="1">Every 1 Day<br>"""
+        print("""<input type="radio" name="freq" value="1">Every 1 Day<br>""")
     if config.has_option(program[x],"freq") and config.get(program[x],"freq") == "2":
-        print """<input type="radio" name="freq" value="2" checked>Every 2 Day<br>"""
+        print("""<input type="radio" name="freq" value="2" checked>Every 2 Day<br>""")
     else:
-        print"""<input type="radio" name="freq" value="2">Every 2 Day<br>"""
+        print("""<input type="radio" name="freq" value="2">Every 2 Day<br>""")
     if config.has_option(program[x],"freq") and config.get(program[x],"freq") == "3":
-        print """<input type="radio" name="freq" value="3" checked>Every 3 Day<br>"""
+        print("""<input type="radio" name="freq" value="3" checked>Every 3 Day<br>""")
     else:
-        print"""<input type="radio" name="freq" value="3">Every 3 Day<br>"""
+        print("""<input type="radio" name="freq" value="3">Every 3 Day<br>""")
 
-    for y in xrange(0, len(station)):
+    for y in range(0, len(station)):
         if config.has_option(program[x],"sta_%s_dur" % (y+1)):
-            print """<p style="font-weight: bold">Station %s Duration (minutes): <input type="text" name="sta_%s_dur" value="%s" size="3"></p>""" % (y+1, y+1,config.get(program[x],"sta_%s_dur" % (y+1)))
+            print("""<p style="font-weight: bold">Station %s Duration (minutes): <input type="text" name="sta_%s_dur" value="%s" size="3"></p>""" % (y+1, y+1,config.get(program[x],"sta_%s_dur" % (y+1))))
         else:
-            print """<p style="font-weight: bold">Station %s Duration (minutes): <input type="text" name="sta_%s_dur" value="0" size="3"></p>""" % (y+1, y+1)
-    print """
+            print("""<p style="font-weight: bold">Station %s Duration (minutes): <input type="text" name="sta_%s_dur" value="0" size="3"></p>""" % (y+1, y+1))
+    print("""
     <input type="hidden" name="program_number" value="program%s">
     <input type=submit name="submit" value="Update Program %s"></form><hr>
-    """ % (x+1, x+1)
+    """ % (x+1, x+1))
 
-print """
+print("""
 </body>
 </html>
-"""
+""")

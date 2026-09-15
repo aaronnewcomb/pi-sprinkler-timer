@@ -1,5 +1,5 @@
 # pi-sprinkler-timer
-A DIY web driven scheduler system for the Raspberry Pi written in Python using lighttpd and pigpio. This is typically used to support a irrigation system with multiple sprinkler valves, but you could also use it to control other devices.
+A DIY web driven scheduler system for the Raspberry Pi written in Python 3 using lighttpd and pigpio. This is typically used to support an irrigation system with multiple sprinkler valves, but you could also use it to control other devices.
 
 (If you are looking for a more turnkey and feature rich solution for your RPi, I highly recommend [OpenSprinkler Pi](https://opensprinkler.com/product/opensprinkler-pi/) instead.)
 
@@ -13,7 +13,8 @@ A DIY web driven scheduler system for the Raspberry Pi written in Python using l
 
 ## Pre-requisites:
 * Lighttpd must be installed
-* [Pigpio](http://abyz.co.uk/rpi/pigpio/) must be installed (Installed by default on Raspbian)
+* Python 3 must be installed
+* [Pigpio](http://abyz.co.uk/rpi/pigpio/) and its Python 3 module must be installed
 * RPi must be configured to connect to your network
 
 ## Installation:
@@ -33,7 +34,7 @@ auth.require = ( "/cgi-bin/" =>
 )
 )
 $HTTP["url"] =~ "^/" {
-    cgi.assign = (".py" => "/usr/bin/python")
+    cgi.assign = (".py" => "/usr/bin/python3")
 }
 ```
 
@@ -73,8 +74,8 @@ Create a file in your www root directory (i.e. /var/www/html) called index.html 
 #### 3. Give files in your cgi-bin location execute privilages and the correct ownership.
 
 ```
-sudo chmod +x /path-to-your-cgi-bin-directory/*
-sudo chown www-data:www-data /path-to-your-cgi-bin-directory/*
+sudo chmod +x /path-to-your-cgi-bin-directory/*.py
+sudo chown www-data:www-data /path-to-your-cgi-bin-directory/*.py
 ```
 
 #### 4. Add pigpiod and the scheduler to rc.local so they start when the Pi boots up.
@@ -85,7 +86,7 @@ Add ...
 
 ```
 pigpiod &
-/<path-to-your-cgi-bin-directory>/sprinkler.py &
+/usr/bin/python3 /<path-to-your-cgi-bin-directory>/sprinkler.py &
 ```
 
 ... before the "exit" statement. Reboot your Raspberry Pi.
@@ -95,7 +96,7 @@ Reboot your RPi. Open a web browser and type in the IP address of your RPi. You 
 ![pi-sprinker-timer main web page](/images/home.png)
 
 ### Add your GPIO pins
-The first time you connect to the web page a new config file should be created. Open the sprinkler.config file and change the values in [Station GPIOs] to match the GPIO pins you connected to your relay board.
+The first time you connect to the web page a new config file should be created. Open the `sprinkler.config` file, change the values in `[Station GPIOs]` to match the GPIO pins connected to your relay board, and add your Pirate Weather API key, latitude, and longitude under `[forecastio]`.
 
 ### Enable reboot and shutdown from the web page
 Add the "www-data" user to the /etc/sudoers file by using visudo. NOTE: This weakens the security of your system in that a knowledgeable person might be able to reboot or shutdown your RPi. You have been warned.
