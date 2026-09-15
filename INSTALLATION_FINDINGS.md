@@ -125,7 +125,10 @@ documentation or code change is verified on target hardware.
   directory, and keep executable and configuration paths absolute under
   `/usr/lib/cgi-bin/`.
 - **Verification:** Regression tests and `systemd-analyze verify` pass locally.
-  Target service startup remains to be repeated after deploying the corrected
-  unit.
+  On the Bookworm Pi, the corrected service starts without a traceback,
+  creates its runtime directory as `www-data:www-data`, listens only on
+  `127.0.0.1:5555`, reports every station off, and shuts down cleanly while
+  releasing the socket and removing the runtime directory. All relay
+  indicators remained off during startup and shutdown.
 - **README impact:** Explain why the runtime directory is required and retain
   the read-only application deployment.
