@@ -270,6 +270,15 @@ class Python3CompatibilityTests(unittest.TestCase):
         scheduler = (ROOT / "sprinkler.py").read_text(encoding="utf-8")
         self.assertIn("ThreadedTCPServer(('127.0.0.1', 5555)", scheduler)
 
+    def test_readme_preserves_relay_and_sudo_safety(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("valve transformer disconnected", readme)
+        service = (ROOT / "systemd" / "open-sprinkler.service").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("RuntimeDirectory", service)
+        self.assertNotIn("NOPASSWD:/sbin/shutdown", readme)
+
     def test_index_renders_without_weather_configuration(self):
         template = self.config_template("index.py")
 

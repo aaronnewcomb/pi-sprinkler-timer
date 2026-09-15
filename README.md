@@ -5,8 +5,8 @@ A DIY web-driven scheduler for Raspberry Pi OS, written in Python 3 and served b
 
 ## Parts
 * Raspberry Pi
- * Network connection
- * Power Supply for RPi
+  * Network connection
+  * Power supply for the Raspberry Pi
 * 24V AC Sprinkler Power Supply
 * Sprinkler Valves
 * 5V Relay Board
@@ -21,6 +21,23 @@ sudo apt install lighttpd apache2-utils python3 python3-gpiozero python3-lgpio
 ```
 
 GPIO access is performed only by the scheduler service. The CGI scripts send commands to that service over a loopback-only TCP socket.
+
+The installation and hardware acceptance procedure below was verified on a
+Raspberry Pi 4 running Raspberry Pi OS Bookworm, Python 3.11, and the Raspberry
+Pi `6.12` kernel.
+
+> **Safety:** Keep the 24 VAC valve transformer disconnected until the service
+> startup, shutdown, and individual relay tests have all passed. This prevents
+> unexpected watering while GPIO behavior is being verified.
+
+Clone the repository and run the complete test suite on the target Pi:
+
+```bash
+git clone https://github.com/aaronnewcomb/pi-sprinkler-timer.git
+cd pi-sprinkler-timer
+PYTHONDONTWRITEBYTECODE=1 python3 -W error \
+    -m unittest discover -s tests -v
+```
 
 ## Installation
 ### Configure lighttpd to run Python scripts with password protection
@@ -46,6 +63,10 @@ sudo chmod 640 /etc/lighttpd/open-sprinkler.htdigest
 ```
 
 Enter the password only at the masked terminal prompts. Do not store it in this repository or in shell history.
+
+Digest authentication protects the password file, but HTTP traffic is not
+encrypted. Use this configuration only on a trusted network until HTTPS is
+configured.
 
 #### 3. Protect the CGI directory
 
@@ -83,7 +104,7 @@ systemctl status lighttpd --no-pager
 
 ### Copy the application
 
-Clone the repository, then install the web files. Raspberry Pi OS maps `/cgi-bin/` to `/usr/lib/cgi-bin/`, which is also the path expected by the included service:
+Install the web files. Raspberry Pi OS maps `/cgi-bin/` to `/usr/lib/cgi-bin/`, which is also the path expected by the included service:
 
 ```bash
 sudo install -m 0755 -o root -g root ./*.py /usr/lib/cgi-bin/
@@ -102,21 +123,69 @@ sudoedit /usr/lib/cgi-bin/sprinkler.config
 
 GPIO numbers use Broadcom (BCM) numbering. Set the station pins for your relay board, then add the Pirate Weather API key, latitude, and longitude if weather reporting is desired.
 
+For an existing installation, preserve the previous `sprinkler.config` outside
+the web directory before copying application files. Review it for the current
+section names, then install it at `/usr/lib/cgi-bin/sprinkler.config` with owner
+and group `www-data` and mode `0660`. Never commit a runtime configuration or
+API key to the repository.
+
 ### Install the systemd service
 
-Install and start the scheduler service:
+Install and validate the scheduler service without starting it:
 
 ```bash
 sudo install -m 0644 systemd/open-sprinkler.service /etc/systemd/system/open-sprinkler.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now open-sprinkler.service
+sudo systemd-analyze verify /etc/systemd/system/open-sprinkler.service
 ```
 
-Check its status and recent logs:
+If this Pi previously used the legacy startup instructions, remove the
+`pigpiod &` and `sprinkler.py &` lines from `/etc/rc.local`. Disable an existing
+`pigpiod` service and verify that no old scheduler owns the loopback port:
 
 ```bash
-systemctl status open-sprinkler.service
+if systemctl list-unit-files pigpiod.service --no-legend | grep -q pigpiod; then
+    sudo systemctl disable --now pigpiod.service
+fi
+sudo ss -ltnp | grep ':5555' || echo "TCP port 5555 is free"
+```
+
+Only one scheduler process should control the relay pins.
+
+With the valve transformer disconnected, start the service without enabling it
+at boot. All relay indicators must remain off:
+
+```bash
+sudo systemctl start open-sprinkler.service
+systemctl status open-sprinkler.service --no-pager -l
+sudo ss -ltnp | grep ':5555'
 journalctl -u open-sprinkler.service -n 50 --no-pager
+```
+
+The socket must listen only on `127.0.0.1:5555`. Verify the scheduler reports
+every station off, then stop it and confirm a clean shutdown:
+
+```bash
+python3 - <<'PY'
+import socket
+
+with socket.create_connection(("127.0.0.1", 5555), timeout=3) as connection:
+    connection.sendall(b"station_status:0")
+    print(connection.recv(512).decode("utf-8"))
+PY
+
+sudo systemctl stop open-sprinkler.service
+systemctl is-active open-sprinkler.service
+sudo ss -ltnp | grep ':5555' || echo "TCP port 5555 released"
+```
+
+All stations must report `off`, the service must become inactive, and every
+relay must remain off. After those checks pass, enable and start the service:
+
+```bash
+sudo systemctl enable --now open-sprinkler.service
+systemctl is-enabled open-sprinkler.service
+systemctl is-active open-sprinkler.service
 ```
 
 The service runs as `www-data` with `gpio` as a supplementary group, restarts after failures, and turns all configured relays off during a normal stop. It binds its control socket to `127.0.0.1:5555`, so relay commands are not accepted from other network hosts.
@@ -126,33 +195,36 @@ directory. The `lgpio` library needs this directory for its temporary
 notification pipe; the application files under `/usr/lib/cgi-bin/` remain
 read-only.
 
-If this Pi previously used the legacy startup instructions, remove the `pigpiod &` and `sprinkler.py &` lines from `/etc/rc.local`. Also disable an existing `pigpiod` systemd service before enabling `open-sprinkler.service`. Only one scheduler process should control the relay pins.
-
 ### Give it a try
-Open a web browser and enter the IP address of the Raspberry Pi. You should see the `index.py` page.
-![pi-sprinker-timer main web page](/images/home.png)
+Open a web browser and enter the hostname or IP address of the Raspberry Pi.
+Authenticate with the digest username and password created above. Verify the
+Home, Program, Delay, Manual Control, and Settings pages before changing a
+relay.
+
+![Pi sprinkler timer main web page](images/home.png)
 
 ### Test before connecting valves
 
-Run the software tests from the repository checkout:
+With the valve transformer still disconnected, use **Manual Control** to
+activate each station individually. Confirm that only the selected relay is on,
+then turn it off before proceeding. Also switch directly from Station 1 to
+Station 2 and verify that Station 1 turns off before Station 2 remains active.
+
+After all stations pass, confirm that the page reports every station off and
+review both service logs for new errors:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
+journalctl -u open-sprinkler.service -n 50 --no-pager
+sudo tail -n 50 /var/log/lighttpd/error.log
 ```
 
-With the valve power disconnected, use **Manual Control** to activate each station and confirm the corresponding relay indicator switches on and off. Active-low boards should remain off while the service starts and stops.
+Reconnect valve power only after all software and relay checks succeed.
 
-### Enable reboot and shutdown from the web page
-Add the "www-data" user to the /etc/sudoers file by using visudo. NOTE: This weakens the security of your system in that a knowledgeable person might be able to reboot or shutdown your RPi. You have been warned.
+## Known limitations
 
-`sudo visudo`
-
-Add these lines to the bottom of the file.
-
-```
-www-data ALL=/sbin/shutdown
-www-data ALL=NOPASSWD:/sbin/shutdown
-```
-
-### *Issues* :shit:
-Need to make it look prettier.
+- HTTPS setup is not yet included. Restrict the current HTTP interface to a
+  trusted network.
+- Web-based reboot and shutdown are not enabled by these instructions. Do not
+  grant the web-server account broad passwordless `sudo` access. A restricted
+  replacement can be added in a future hardening update.
+- The interface retains the original project's basic visual design.

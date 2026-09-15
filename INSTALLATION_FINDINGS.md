@@ -28,6 +28,13 @@ documentation or code change is verified on target hardware.
   and remained disabled and inactive before hardware acceptance. `pigpiod` was
   disabled and inactive, no legacy sprinkler entry was present in `rc.local`,
   and TCP port 5555 remained free.
+- After target service acceptance, the unit enabled and started normally at
+  boot. Digest authentication worked, all five CGI pages rendered without
+  errors, and the relay indicators remained off during read-only web use.
+- All eight relays passed individual manual-control tests with valve power
+  disconnected. Switching directly from Station 1 to Station 2 turned Station
+  1 off first, final status reported every station off, and no service or CGI
+  errors were logged.
 
 ## Findings
 
@@ -55,8 +62,9 @@ documentation or code change is verified on target hardware.
   mapping check was incorrect for this packaged configuration.
 - **Resolution:** Rely on the existing `#!/usr/bin/python3` shebangs and
   executable file permissions.
-- **Verification:** Configuration content confirmed on the test Pi. CGI
-  execution remains to be tested after deployment.
+- **Verification:** Configuration content and shebang-based CGI execution were
+  confirmed on the test Pi. All five authenticated CGI pages rendered without
+  errors.
 - **README impact:** Explain both supported handler styles and verify the
   enabled CGI configuration rather than requiring one exact mapping.
 
@@ -73,8 +81,8 @@ documentation or code change is verified on target hardware.
   path from each script's installed directory.
 - **Verification:** All 17 tests pass under the development Python, an exact
   Python 3.11 interpreter, and the test Pi's Python 3.11.2 runtime.
-  `systemd-analyze verify` accepts the unit. CGI execution remains to be
-  tested on the Pi.
+  `systemd-analyze verify` accepts the unit, and authenticated CGI execution
+  passed on the Pi.
 - **README impact:** Use the Raspberry Pi OS packaged CGI directory or clearly
   document a custom alias when another path is selected.
 
@@ -86,12 +94,12 @@ documentation or code change is verified on target hardware.
   cleartext storage.
 - **Impact:** Following the original instructions would leave a reusable
   password readable on disk.
-- **Proposed resolution:** Use a masked `htdigest` prompt and a root-owned file
+- **Resolution:** Use a masked `htdigest` prompt and a root-owned file
   readable by the `www-data` group. Add HTTPS in a later hardening round.
 - **Verification:** Digest authentication configuration validates without
   warnings after explicitly loading `mod_authn_file`, and lighttpd is active
-  on the test Pi. Browser authentication remains to be tested after CGI
-  deployment.
+  on the test Pi. Browser authentication and all five protected CGI pages were
+  verified successfully.
 - **README impact:** Replace the plaintext backend instructions and warn that
   authentication without HTTPS is suitable only for a trusted test network.
 
