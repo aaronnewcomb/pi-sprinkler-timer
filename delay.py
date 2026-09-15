@@ -1,13 +1,13 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
-import cgi
-import cgitb; cgitb.enable()  # for troubleshooting
 import socket
 import time
 import datetime
 
+from cgi_utils import QueryForm
+
 # Create instance of FieldStorage
-form = cgi.FieldStorage()
+form = QueryForm()
 error = False
 
 if form.getfirst("submit") == "Start":
@@ -15,35 +15,36 @@ if form.getfirst("submit") == "Start":
     if duration:
         clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         clientsocket.connect(('localhost', 5555))
-        clientsocket.send("delay:%s" % duration)
+        clientsocket.sendall(("delay:%s" % duration).encode("utf-8"))
         clientsocket.close()
     else: # If start was pressed but didn't specify a time
         error = True
 elif form.getfirst("submit") == "Pause":
     clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     clientsocket.connect(('localhost', 5555))
-    clientsocket.send("pause:0")
+    clientsocket.sendall("pause:0".encode("utf-8"))
     clientsocket.close()
 elif form.getfirst("submit") == "Resume":
     clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     clientsocket.connect(('localhost', 5555))
-    clientsocket.send("resume:0")
+    clientsocket.sendall("resume:0".encode("utf-8"))
     clientsocket.close()
 
 time.sleep(1)
 clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 clientsocket.connect(('localhost', 5555))
-clientsocket.send("status:0")
+clientsocket.sendall("status:0".encode("utf-8"))
 while True:
-    data = clientsocket.recv(64)
-    if "disabled" in data:
+    data = clientsocket.recv(64).decode("utf-8")
+    if "Delayed" in data:
         (data,futuretime) = data.split(":")
         localtime = time.asctime( time.localtime(float(futuretime)) )
+        data = "Delayed until %s" % (localtime)
     break
 clientsocket.close()
 
-print "Content-type: text/html\n\n"
-print """
+print("Content-type: text/html\n\n")
+print("""
 <html>
 <head>
 <title>Pi Sprinkler - Delay</title>
@@ -62,14 +63,14 @@ table, th, td {
 </table>
 </p>
 <p>Current status: %s</p>
-""" % data
+""" % data)
 if 'localtime' in globals():
     if float(futuretime) > time.time():
-        print """<p style="color:red;font-weight: bold">Delay will expire at %s.<p>""" % localtime
+        print("""<p style="color:red;font-weight: bold">Delay will expire at %s.<p>""" % localtime)
 if error:
-    print """<p style="color:red;font-weight: bold">Duration must not be blank!<p>"""
+    print("""<p style="color:red;font-weight: bold">Duration must not be blank!<p>""")
 
-print """
+print("""
 <h3>Set Rain Delay</h3>
 <form action="/cgi-bin/delay.py" method="get">
 <p>Duration (hours):<input type="text" name="duration" value="72" size="4"><input type="submit" name="submit" value="Start"></p>
@@ -78,4 +79,4 @@ print """
 </form>
 </body>
 </html>
-"""
+""")

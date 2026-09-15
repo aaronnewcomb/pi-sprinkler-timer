@@ -1,0 +1,21 @@
+[Unit]
+Description=Open Sprinkler scheduler and GPIO controller
+After=local-fs.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+SupplementaryGroups=gpio
+RuntimeDirectory=open-sprinkler
+RuntimeDirectoryMode=0750
+WorkingDirectory=/run/open-sprinkler
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/usr/bin/test -r /usr/lib/cgi-bin/sprinkler.config
+ExecStart=/usr/bin/python3 /usr/lib/cgi-bin/sprinkler.py
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+
+[Install]
+WantedBy=multi-user.target

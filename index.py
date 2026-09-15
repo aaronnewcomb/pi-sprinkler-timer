@@ -1,21 +1,22 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
-import cgi
-import cgitb; cgitb.enable()  # for troubleshooting
-import ConfigParser
+import configparser
 import datetime
 import time
-import urllib2
+import urllib.error
+import urllib.request
 import optparse
 import json
 import socket
 
-config = ConfigParser.ConfigParser()
+from app_paths import CONFIG_FILE
+
+config = configparser.ConfigParser()
 today = datetime.datetime.today()
 yesterday = today - datetime.timedelta(days=1)
-url = "https://api.forecast.io/forecast/"
+url = "https://api.pirateweather.net/forecast/"
 # Full path of config file
-config_file = "/var/www/html/cgi-bin/sprinkler.config"
+config_file = CONFIG_FILE
 config_lines = """# Change this to match the GPIO numbers for the pins you connect to your relay board
 [Station GPIOs]
 pins = 5,6,12,13,16,19,20,21
@@ -24,13 +25,13 @@ pins = 5,6,12,13,16,19,20,21
 names = program1,program2,program3,program4
 
 [OpenWeatherMap]
-apikey = 4d741c61036a070a425c19446dc92392
-zipcode = 94510
+apikey =
+zipcode =
 
 [forecastio]
-apikey = 8f59e11beab60fee52912ab48354b0b9
-lat = 38.049365
-lng = -122.158578
+apikey =
+lat =
+lng =
 
 [program1]
 lastrun = 0
@@ -46,18 +47,18 @@ lastrun = 0"""
 
 clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 clientsocket.connect(('localhost', 5555))
-clientsocket.send("status:0")
+clientsocket.sendall("status:0".encode("utf-8"))
 while True:
-    data = clientsocket.recv(64)
-    if "disabled" in data:
+    data = clientsocket.recv(64).decode('utf-8')
+    if "Delayed" in data:
         (data,futuretime) = data.split(":")
         localtime = time.asctime( time.localtime(float(futuretime)) )
-        data = "Disabled unitl %s" % (localtime)
+        data = "Delayed until %s" % (localtime)
     break
 clientsocket.close()
 
-print "Content-type: text/html\n\n"
-print """
+print ("Content-type: text/html\n\n")
+print ("""
 <html>
 <head>
 <title>Pi Sprinkler - Home</title>
@@ -76,7 +77,7 @@ table, th, td {
 </table>
 <p>Current status: %s</p>
 <p>
-""" % data
+""" % data)
 
 if not config.read(config_file):
     # lets create that config file for next time...
@@ -94,15 +95,6 @@ if not config.read(config_file):
 api = config.get("forecastio","apikey")
 lat = config.get("forecastio","lat")
 lng = config.get("forecastio","lng")
-req = urllib2.Request(url+api+"/"+("%s,%s" % (lat,lng)))
-response = urllib2.urlopen(req)
-req_y = urllib2.Request(url+api+"/"+("%s,%s,%s" % (lat,lng,yesterday.replace(microsecond=0).isoformat())))
-response_y = urllib2.urlopen(req_y)
-parsed = json.loads(response.read())
-parsed_y = json.loads(response_y.read())
-current = parsed["currently"]
-daily = parsed["daily"]["data"][0]
-daily_y = parsed_y["daily"]["data"][0]
 
 def get_precip(i):
     precip = i["precipIntensityMax"]
@@ -117,16 +109,32 @@ def get_precip(i):
     elif precip > .4:
         return "Heavy"
 
-print "<h3>Weather Report</h3>"
-print "Current Time: %s<br>" % today
-print "Current Conditions: %s<br>" % current["summary"]
-print "Current Temperature: %s<br>" % current["temperature"]
-print "Today's Forecasted High Temperature: %s<br>" % daily["temperatureMax"]
-print "Yesterday's High Temperature: %s<br>" % daily_y["temperatureMax"]
-print "Current Precipitation: %s<br>" % get_precip(daily)
-print "Yesterday's Precipitation: %s<br>" % get_precip(daily_y)
+print ("<h3>Weather Report</h3>")
+print ("Current Time: %s<br>" % today)
+if api and lat and lng:
+    try:
+        req = urllib.request.Request(url+api+"/"+("%s,%s" % (lat,lng)))
+        response = urllib.request.urlopen(req, timeout=10)
+        req_y = urllib.request.Request(url+api+"/"+("%s,%s,%s" % (lat,lng,yesterday.replace(microsecond=0).isoformat())))
+        response_y = urllib.request.urlopen(req_y, timeout=10)
+        parsed = json.loads(response.read().decode('utf-8'))
+        parsed_y = json.loads(response_y.read().decode('utf-8'))
+        current = parsed["currently"]
+        daily = parsed["daily"]["data"][0]
+        daily_y = parsed_y["daily"]["data"][0]
+    except (urllib.error.URLError, ValueError, KeyError, IndexError):
+        print ("Weather data is temporarily unavailable.<br>")
+    else:
+        print ("Current Conditions: %s<br>" % current["summary"])
+        print ("Current Temperature: %s<br>" % current["temperature"])
+        print ("Today's Forecasted High Temperature: %s<br>" % daily["temperatureMax"])
+        print ("Yesterday's High Temperature: %s<br>" % daily_y["temperatureMax"])
+        print ("Current Precipitation: %s<br>" % get_precip(daily))
+        print ("Yesterday's Precipitation: %s<br>" % get_precip(daily_y))
+else:
+    print ("Weather is not configured. Add a Pirate Weather API key, latitude, and longitude in Settings.<br>")
 
-print """
+print ("""
 </p></body>
 </html>
-"""
+""")

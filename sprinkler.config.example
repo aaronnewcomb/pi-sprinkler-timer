@@ -1,0 +1,27 @@
+# GPIO numbers use Broadcom (BCM) numbering. These defaults define 8 stations.
+[Station GPIOs]
+pins = 5,6,12,13,16,19,20,21
+
+[Programs]
+names = program1,program2,program3,program4
+
+[OpenWeatherMap]
+apikey =
+zipcode =
+
+[forecastio]
+apikey =
+lat =
+lng =
+
+[program1]
+lastrun = 0
+
+[program2]
+lastrun = 0
+
+[program3]
+lastrun = 0
+
+[program4]
+lastrun = 0

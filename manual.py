@@ -1,73 +1,72 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
-import pigpio
-import cgi
-import cgitb; cgitb.enable()  # for troubleshooting
 import socket
 import time
-import ConfigParser
+import configparser
+
+from cgi_utils import QueryForm
+from app_paths import CONFIG_FILE
 
 # Create instance of FieldStorage
-form = cgi.FieldStorage()
+form = QueryForm()
 error = False
-config = ConfigParser.ConfigParser()
-config_file = "/var/www/html/cgi-bin/sprinkler.config"
+config = configparser.ConfigParser()
+config_file = CONFIG_FILE
 config.read(config_file)
 # Read in global station and program names
 station = config.get("Station GPIOs","pins").split(",")
-station = map(int,station)
+station = list(map(int,station))
 program = config.get("Programs","names").split(",")
-pi = pigpio.pi()
+
+
+def scheduler_command(command, response_size=64):
+    clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        clientsocket.connect(('localhost', 5555))
+        clientsocket.sendall(command.encode("utf-8"))
+        if response_size:
+            return clientsocket.recv(response_size).decode("utf-8")
+    finally:
+        clientsocket.close()
 
 if form.getfirst("test") == "Start":
     duration = form.getvalue('duration')
     if duration:
-        clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        clientsocket.connect(('localhost', 5555))
-        clientsocket.send("test_run:%s" % duration)
-        clientsocket.close()
+        scheduler_command("test_run:%s" % duration, response_size=0)
     else:
         error = True
 elif form.getfirst("test") == "Cancel":
-    clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    clientsocket.connect(('localhost', 5555))
-    clientsocket.send("test_run:cancel")
-    clientsocket.close()
+    scheduler_command("test_run:cancel", response_size=0)
 
 time.sleep(.25)
-clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-clientsocket.connect(('localhost', 5555))
-clientsocket.send("status:0")
-while True:
-    data = clientsocket.recv(64)
-    if data == "Running":
-        running = True
-        break
-    else:
-        running = False
-        break
-    if not data:
-        break
-clientsocket.close()
+data = scheduler_command("status:0")
+if data == "Running":
+    running = True
+elif "Delayed" in data:
+    (data,futuretime) = data.split(":")
+    localtime = time.asctime(time.localtime(float(futuretime)))
+    data = "Delayed until %s" % localtime
+    running = False
+else:
+    running = False
 
-status = {}
+if form.getfirst("test") != "Start" and running == False:
+    for pin in station:
+        requested_state = form.getfirst(str(pin))
+        if requested_state == "ON":
+            scheduler_command("station_on:%s" % pin)
+        elif requested_state == "OFF":
+            scheduler_command("station_off:%s" % pin)
 
-for i in station:
-    pi.set_mode(i, pigpio.OUTPUT)
-    if form.getfirst("test") != "Start" and running == False:
-        if form.getfirst(str(i)) == "ON":
-            pi.write(i, 0)
-        else:
-            pi.write(i, 1)
+status_response = scheduler_command("station_status:0", response_size=1024)
+station_states = dict(item.split("=", 1) for item in status_response.split(","))
+status = {
+    pin: "green" if station_states.get(str(pin)) == "on" else ""
+    for pin in station
+}
 
-for i in station:
-    if pi.read(i) == 0:
-        status[i] = "green"
-    else:
-        status[i] = ""
-
-print "Content-type: text/html\n\n"
-print """
+print("Content-type: text/html\n\n")
+print("""
 <html>
 <head>
 <title>Pi Sprinkler - Manual Control</title>
@@ -88,23 +87,23 @@ table, th, td {
 <p>Current status: %s</p>
 <h3>Manual Station Control</h3>
 <form action="/cgi-bin/manual.py" method="get">
-""" % data
+""" % data)
 
-for x in xrange(0, len(station)):
-    print """<p style="color:%s;font-weight: bold">Station %s: <input type="submit" name="%s" value="ON" style="background-color:%s;"><input type="submit" name="%s" value="OFF"></p>""" % (status[station[x]],x+1,station[x],status[station[x]],station[x])
+for x in range(0, len(station)):
+    print("""<p style="color:%s;font-weight: bold">Station %s: <input type="submit" name="%s" value="ON" style="background-color:%s;"><input type="submit" name="%s" value="OFF"></p>""" % (status[station[x]],x+1,station[x],status[station[x]],station[x]))
 
 #print form.getfirst("5","bonk")
 #cgi.print_form(form)
 
-print """<h3>Test Run</h3>"""
+print("""<h3>Test Run</h3>""")
 if running:
-    print """<p style="color:green;font-weight: bold">Duration (seconds): RUNNING <input type="submit" name="test" value="Cancel"></p>"""
+    print("""<p style="color:green;font-weight: bold">Duration (seconds): RUNNING <input type="submit" name="test" value="Cancel"></p>""")
 else:
-    print """<p>Duration (seconds):<input type="text" name="duration" value="10" size="4"><input type="submit" name="test" value="Start"><input type="submit" name="test" value="Cancel"></p>"""
+    print("""<p>Duration (seconds):<input type="text" name="duration" value="10" size="4"><input type="submit" name="test" value="Start"><input type="submit" name="test" value="Cancel"></p>""")
     if error:
-        print """<p style="color:red;font-weight: bold">Duration must not be blank!<p>"""
+        print("""<p style="color:red;font-weight: bold">Duration must not be blank!<p>""")
 
-print """
+print("""
 </form>
 <h3>System Control</h3>
 <form action="/cgi-bin/reboot.py" method="get">
@@ -112,4 +111,4 @@ print """
 </form>
 </body>
 </html>
-"""
+""")
