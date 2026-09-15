@@ -16,6 +16,13 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = sorted(ROOT.glob("*.py"))
 
 
+def ast_module(body):
+    kwargs = {"body": body}
+    if "type_ignores" in ast.Module._fields:
+        kwargs["type_ignores"] = []
+    return ast.Module(**kwargs)
+
+
 class Python3CompatibilityTests(unittest.TestCase):
     @staticmethod
     def config_template(filename):
@@ -139,7 +146,7 @@ class Python3CompatibilityTests(unittest.TestCase):
             "test": False,
             "test_time": 0,
         }
-        exec(compile(ast.Module(body=[handler_node]), "sprinkler.py", "exec"), namespace)
+        exec(compile(ast_module([handler_node]), "sprinkler.py", "exec"), namespace)
 
         class FakeRequest:
             def __init__(self):
@@ -199,7 +206,7 @@ class Python3CompatibilityTests(unittest.TestCase):
             "test": False,
             "test_time": 0,
         }
-        exec(compile(ast.Module(body=[handler_node]), "sprinkler.py", "exec"), namespace)
+        exec(compile(ast_module([handler_node]), "sprinkler.py", "exec"), namespace)
 
         class FakeRequest:
             def __init__(self, command):
