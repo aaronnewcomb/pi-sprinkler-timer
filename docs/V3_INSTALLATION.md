@@ -27,7 +27,8 @@ test user belongs to the `gpio` group.
 ```bash
 sudo apt update
 sudo apt full-upgrade
-sudo apt install git lighttpd openssl python3 python3-venv python3-gpiozero python3-lgpio
+sudo apt install git lighttpd lighttpd-mod-openssl openssl python3 python3-venv \
+    python3-gpiozero python3-lgpio
 sudo reboot
 ```
 
@@ -116,16 +117,79 @@ sudo ln -s ../conf-available/99-open-sprinkler-v3.conf \
     /etc/lighttpd/conf-enabled/99-open-sprinkler-v3.conf
 ```
 
-For browser sessions, install a certificate and private key trusted by your
-devices, then adapt and enable `98-open-sprinkler-tls.conf.example`. Its HTTP
-listener redirects every request to HTTPS so the API token is never submitted
-over plain HTTP. Keep `secure_cookies = true` in the application
-configuration. The TLS private key must remain root-owned and must never enter
-Git.
+Choose one of the following browser-access paths before starting the service.
 
-For an isolated HTTP-only hardware test, `secure_cookies` may temporarily be
-set to `false`. Do not use that setting on an untrusted network, and restore it
-before production use.
+### Option A: temporary HTTP for isolated hardware acceptance
+
+For an isolated test on a trusted LAN, edit
+`/etc/open-sprinkler/open-sprinkler.ini` and temporarily set:
+
+```ini
+secure_cookies = false
+```
+
+Do not enable the TLS example in this mode. Open the controller with
+`http://CONTROLLER-IP/`. The API token travels over the local network without
+encryption, so use this only for short hardware acceptance on a trusted LAN.
+Use a temporary token, then rotate it and restore `secure_cookies = true`
+before regular use.
+
+### Option B: trusted HTTPS for private-LAN use
+
+The commands below use `mkcert` to create a private certificate authority and
+a server certificate. Replace the example name and address with the stable
+hostname and IP address of this Pi. If `hostname` prints `opensprinkler`, the
+mDNS name is normally `opensprinkler.local`.
+
+```bash
+hostname
+hostname -I
+
+sprinkler_name="opensprinkler.local"
+sprinkler_ip="192.168.0.50"
+
+sudo apt install mkcert libnss3-tools lighttpd-mod-openssl
+mkcert -install
+
+sudo install -d -m 0700 -o root -g root \
+    /etc/lighttpd/certs/open-sprinkler
+sudo env CAROOT="$(mkcert -CAROOT)" mkcert \
+    -cert-file /etc/lighttpd/certs/open-sprinkler/fullchain.pem \
+    -key-file /etc/lighttpd/certs/open-sprinkler/privkey.pem \
+    "$sprinkler_name" "$sprinkler_ip"
+sudo chmod 0644 /etc/lighttpd/certs/open-sprinkler/fullchain.pem
+sudo chmod 0600 /etc/lighttpd/certs/open-sprinkler/privkey.pem
+```
+
+Inspect the certificate without displaying the private key:
+
+```bash
+sudo openssl x509 \
+    -in /etc/lighttpd/certs/open-sprinkler/fullchain.pem \
+    -noout -subject -issuer -dates -ext subjectAltName
+```
+
+Install the TLS configuration:
+
+```bash
+sudo test ! -e /etc/lighttpd/conf-available/98-open-sprinkler-tls.conf
+sudo install -m 0644 \
+    /opt/open-sprinkler/source/lighttpd/98-open-sprinkler-tls.conf.example \
+    /etc/lighttpd/conf-available/98-open-sprinkler-tls.conf
+sudo ln -s ../conf-available/98-open-sprinkler-tls.conf \
+    /etc/lighttpd/conf-enabled/98-open-sprinkler-tls.conf
+```
+
+`mkcert -install` trusts the new certificate authority on the Pi only. Run
+`mkcert -CAROOT` to locate `rootCA.pem`, then transfer only that public CA
+certificate to each computer, phone, or tablet that will open the controller
+and install it as a trusted CA. Never copy or share `rootCA-key.pem`; possession
+of that private key permits issuing certificates trusted by those devices.
+
+Keep `secure_cookies = true` in the application configuration. The HTTP
+listener redirects every request to HTTPS so the API token is not submitted
+over plain HTTP. The server private key must remain root-owned and must never
+enter Git.
 
 Validate configuration before restarting the proxy:
 
@@ -134,6 +198,21 @@ sudo lighttpd -tt -f /etc/lighttpd/lighttpd.conf
 sudo systemctl restart lighttpd
 systemctl status lighttpd --no-pager -l
 ```
+
+For Option B, verify the redirect and TLS handshake before the application is
+started:
+
+```bash
+curl -I "http://${sprinkler_ip}/"
+openssl s_client -brief -verify_return_error \
+    -connect "${sprinkler_ip}:443" \
+    -servername "$sprinkler_name" \
+    -CAfile "$(mkcert -CAROOT)/rootCA.pem" </dev/null
+```
+
+The redirect must point to HTTPS, and the TLS output must report successful
+certificate verification. A proxy error at this point is expected because the
+application service remains stopped.
 
 ## 7. Software and relay acceptance
 
@@ -151,6 +230,12 @@ The API must listen only on `127.0.0.1:8000`. Open the controller through
 lighttpd, sign in, and confirm every station reports off. Test each relay
 individually, switch directly between stations, set and clear a rain delay,
 create a short schedule, and confirm its run appears in history.
+
+For Option B, the health endpoint must now succeed:
+
+```bash
+curl --fail --show-error "https://${sprinkler_ip}/api/v1/health"
+```
 
 Stop the service and confirm every relay remains off:
 

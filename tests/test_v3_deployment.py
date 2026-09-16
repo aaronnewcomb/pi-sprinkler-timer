@@ -51,3 +51,14 @@ class DeploymentTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn('duration.defaultValue = "10"', script)
+
+    def test_installation_guide_has_complete_tls_paths(self):
+        guide = (ROOT / "docs" / "V3_INSTALLATION.md").read_text(encoding="utf-8")
+
+        self.assertIn("Option A: temporary HTTP", guide)
+        self.assertIn("secure_cookies = false", guide)
+        self.assertIn("Option B: trusted HTTPS", guide)
+        self.assertIn("sudo apt install mkcert", guide)
+        self.assertIn("98-open-sprinkler-tls.conf", guide)
+        self.assertIn("rootCA.pem", guide)
+        self.assertIn("Never copy or share `rootCA-key.pem`", guide)
