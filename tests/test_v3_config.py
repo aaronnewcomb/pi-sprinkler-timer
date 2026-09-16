@@ -27,6 +27,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual([station.pin for station in settings.stations], [5, 6])
         self.assertEqual(settings.listen_host, "127.0.0.1")
         self.assertEqual(settings.listen_port, 8000)
+        self.assertTrue(settings.secure_cookies)
         self.assertEqual(settings.max_duration_seconds, 7_200)
         self.assertEqual(settings.timezone, "UTC")
         self.assertEqual(settings.scheduler_poll_seconds, 15)

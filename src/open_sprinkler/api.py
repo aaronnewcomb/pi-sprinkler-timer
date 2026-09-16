@@ -6,12 +6,25 @@ import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, time
+from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import __version__
+from .auth import BrowserSessionManager
 from .controller import ControllerStatus, SprinklerController, UnknownStationError
 from .persistence import (
     Schedule,
@@ -20,6 +33,10 @@ from .persistence import (
     SQLiteRepository,
 )
 from .scheduler import ScheduleRunner
+
+WEB_ROOT = Path(__file__).with_name("web")
+SESSION_COOKIE = "open_sprinkler_session"
+CSRF_COOKIE = "open_sprinkler_csrf"
 
 
 class StationResponse(BaseModel):
@@ -87,16 +104,27 @@ class RunRecordResponse(BaseModel):
     outcome: str | None
 
 
+class LoginRequest(BaseModel):
+    token: str = Field(min_length=1)
+
+
+class LoginResponse(BaseModel):
+    authenticated: bool
+    expires_at: datetime
+
+
 def create_app(
     controller: SprinklerController,
     api_token: str,
     *,
     repository: SQLiteRepository | None = None,
     scheduler: ScheduleRunner | None = None,
+    secure_cookies: bool = True,
 ) -> FastAPI:
     """Create an API app around one controller instance."""
     if not api_token:
         raise ValueError("API token must not be empty")
+    session_manager = BrowserSessionManager(api_token)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -121,24 +149,107 @@ def create_app(
         version=__version__,
         lifespan=lifespan,
     )
+    app.mount(
+        "/assets",
+        StaticFiles(directory=WEB_ROOT / "assets"),
+        name="assets",
+    )
 
-    async def require_api_token(
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; base-uri 'none'; form-action 'self'; "
+            "frame-ancestors 'none'; img-src 'self' data:; "
+            "script-src 'self'; style-src 'self'; connect-src 'self'"
+        )
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        return response
+
+    async def require_authentication(
+        request: Request,
         authorization: Annotated[str | None, Header()] = None,
+        csrf_header: Annotated[
+            str | None, Header(alias="X-Open-Sprinkler-CSRF")
+        ] = None,
     ) -> None:
         scheme, separator, supplied_token = (authorization or "").partition(" ")
-        authenticated = (
+        bearer_authenticated = (
             separator == " "
             and scheme.lower() == "bearer"
             and secrets.compare_digest(supplied_token, api_token)
         )
-        if not authenticated:
+        if bearer_authenticated:
+            return
+
+        session_csrf = session_manager.verify(request.cookies.get(SESSION_COOKIE))
+        if session_csrf is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Valid bearer token required",
+                detail="Valid bearer token or browser session required",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        if request.method not in {"GET", "HEAD", "OPTIONS"} and (
+            csrf_header is None or not secrets.compare_digest(csrf_header, session_csrf)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Valid CSRF token required",
+            )
 
-    protected = [Depends(require_api_token)]
+    protected = [Depends(require_authentication)]
+
+    @app.get("/", include_in_schema=False)
+    async def web_interface() -> FileResponse:
+        return FileResponse(WEB_ROOT / "index.html")
+
+    @app.get("/favicon.svg", include_in_schema=False)
+    async def favicon() -> FileResponse:
+        return FileResponse(WEB_ROOT / "assets" / "favicon.svg")
+
+    @app.post("/api/v1/auth/login", response_model=LoginResponse)
+    async def login(request: LoginRequest, response: Response) -> LoginResponse:
+        if not secrets.compare_digest(request.token, api_token):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid API token",
+            )
+        browser_session = session_manager.issue()
+        response.set_cookie(
+            SESSION_COOKIE,
+            browser_session.value,
+            max_age=session_manager.lifetime_seconds,
+            httponly=True,
+            secure=secure_cookies,
+            samesite="strict",
+            path="/",
+        )
+        response.set_cookie(
+            CSRF_COOKIE,
+            browser_session.csrf_token,
+            max_age=session_manager.lifetime_seconds,
+            httponly=False,
+            secure=secure_cookies,
+            samesite="strict",
+            path="/",
+        )
+        return LoginResponse(
+            authenticated=True,
+            expires_at=datetime.fromtimestamp(browser_session.expires_at_epoch, tz=UTC),
+        )
+
+    @app.post(
+        "/api/v1/auth/logout",
+        status_code=status.HTTP_204_NO_CONTENT,
+        dependencies=protected,
+    )
+    async def logout(response: Response) -> Response:
+        response.delete_cookie(SESSION_COOKIE, path="/", secure=secure_cookies)
+        response.delete_cookie(CSRF_COOKIE, path="/", secure=secure_cookies)
+        response.status_code = status.HTTP_204_NO_CONTENT
+        return response
 
     @app.get("/api/v1/health", response_model=HealthResponse)
     async def health() -> HealthResponse:

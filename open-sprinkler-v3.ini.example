@@ -10,6 +10,8 @@ max_duration_seconds = 7200
 # Keep the application private behind the local reverse proxy.
 host = 127.0.0.1
 port = 8000
+# Keep true behind the documented HTTPS reverse proxy.
+secure_cookies = true
 
 [Storage]
 database_path = /var/lib/open-sprinkler/open-sprinkler.db

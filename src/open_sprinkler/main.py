@@ -55,6 +55,7 @@ def main() -> None:
         api_token,
         repository=repository,
         scheduler=scheduler,
+        secure_cookies=settings.secure_cookies,
     )
 
     uvicorn.run(

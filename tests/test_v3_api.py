@@ -66,6 +66,25 @@ def make_persistent_app():
     return create_app(controller, "test-token", repository=repository)
 
 
+def make_browser_app():
+    repository = SQLiteRepository.open(":memory:")
+    controller = SprinklerController(
+        [
+            StationDefinition(id=1, name="Front", pin=5),
+            StationDefinition(id=2, name="Back", pin=6),
+        ],
+        FakeRelayBank(),
+        max_duration_seconds=7_200,
+        run_recorder=repository,
+    )
+    return create_app(
+        controller,
+        "test-token",
+        repository=repository,
+        secure_cookies=False,
+    )
+
+
 async def request_scenario(callback, app_factory=make_app):
     app = app_factory()
     transport = httpx.ASGITransport(app=app)
@@ -222,3 +241,43 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(response.status_code, 204)
 
         asyncio.run(request_scenario(scenario, make_persistent_app))
+
+    def test_browser_session_requires_csrf_for_control(self):
+        async def scenario(client):
+            response = await client.post(
+                "/api/v1/auth/login", json={"token": "test-token"}
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("open_sprinkler_session", client.cookies)
+
+            response = await client.get("/api/v1/status")
+            self.assertEqual(response.status_code, 200)
+
+            response = await client.post("/api/v1/actions/stop-all")
+            self.assertEqual(response.status_code, 403)
+
+            response = await client.post(
+                "/api/v1/actions/stop-all",
+                headers={
+                    "X-Open-Sprinkler-CSRF": client.cookies.get("open_sprinkler_csrf")
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+
+        asyncio.run(request_scenario(scenario, make_browser_app))
+
+    def test_web_interface_and_security_headers_are_served(self):
+        async def scenario(client):
+            response = await client.get("/")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("Open Sprinkler", response.text)
+            self.assertIn(
+                "default-src 'self'", response.headers["content-security-policy"]
+            )
+            self.assertEqual(response.headers["x-frame-options"], "DENY")
+
+            response = await client.get("/assets/styles.css")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("station-grid", response.text)
+
+        asyncio.run(request_scenario(scenario, make_browser_app))

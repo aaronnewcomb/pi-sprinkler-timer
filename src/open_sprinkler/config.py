@@ -16,6 +16,7 @@ class RuntimeSettings:
     max_duration_seconds: int
     listen_host: str
     listen_port: int
+    secure_cookies: bool
     database_path: Path
     timezone: str
     scheduler_poll_seconds: int
@@ -48,6 +49,7 @@ def load_settings(path: Path) -> RuntimeSettings:
         ),
         listen_host=parser.get("Server", "host", fallback="127.0.0.1"),
         listen_port=parser.getint("Server", "port", fallback=8000),
+        secure_cookies=parser.getboolean("Server", "secure_cookies", fallback=True),
         database_path=Path(
             parser.get(
                 "Storage",
