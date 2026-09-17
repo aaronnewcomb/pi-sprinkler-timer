@@ -1,5 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Pi Sprinkler Timer">
   <rect width="64" height="64" rx="18" fill="#0b6267"/>
-  <path d="M32 12c-8 11-15 20-15 29a15 15 0 0 0 30 0c0-9-7-18-15-29Z" fill="#d9efea"/>
-  <path d="M24 43c2 4 5 6 10 6" fill="none" stroke="#0b6267" stroke-linecap="round" stroke-width="4"/>
+  <path d="M32 18c-11 0-19 8-19 18s8 18 19 18 19-8 19-18-8-18-19-18Z" fill="#d9efea"/>
+  <circle cx="21" cy="24" r="7" fill="#d9efea"/><circle cx="32" cy="20" r="7" fill="#d9efea"/><circle cx="43" cy="24" r="7" fill="#d9efea"/>
+  <path d="M27 14c-1-7 4-10 10-9-1 5-4 8-10 9Z" fill="#e89b48"/>
+  <path d="M25 31c0 4-3 7-7 7s-7-3-7-7c0-4 7-11 7-11s7 7 7 11Zm29 9c0 5-4 9-9 9s-9-4-9-9c0-5 9-14 9-14s9 9 9 14Z" fill="#4bb6d6"/>
+  <circle cx="29" cy="36" r="2.5" fill="#0b6267"/><circle cx="37" cy="36" r="2.5" fill="#0b6267"/>
 </svg>

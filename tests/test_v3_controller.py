@@ -136,6 +136,30 @@ class ControllerTests(unittest.TestCase):
 
         asyncio.run(scenario())
 
+    def test_live_configuration_updates_names_and_future_duration_limit(self):
+        async def scenario():
+            controller, _relays = make_controller(max_duration_seconds=120)
+            await controller.start()
+            await controller.reconfigure(
+                station_names=["Front Lawn", "Back Lawn"],
+                max_duration_seconds=60,
+            )
+            status = await controller.status()
+            self.assertEqual(
+                [station.name for station in status.stations],
+                ["Front Lawn", "Back Lawn"],
+            )
+            with self.assertRaisesRegex(ValueError, "between 1 and 60"):
+                await controller.start_station(1, 61)
+            started = await controller.start_station(
+                1, 30, source="schedule", schedule_id=9
+            )
+            self.assertEqual(started.active_source, "schedule")
+            self.assertEqual(started.active_schedule_id, 9)
+            await controller.close()
+
+        asyncio.run(scenario())
+
     def test_persistence_failure_does_not_leave_controller_state_active(self):
         async def scenario():
             controller, relays = make_controller(run_recorder=FailingFinishRecorder())

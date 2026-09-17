@@ -60,6 +60,9 @@ The current development branch implements:
   of seconds;
 - `POST /api/v1/stations/{id}/stop`, stop one station;
 - `POST /api/v1/actions/stop-all`, de-energize every relay;
+- `POST /api/v1/actions/configured-stop`, apply the dashboard Stop policy;
+- `GET|PUT /api/v1/controller-settings`, inspect or change station metadata,
+  pending GPIO pins, timezone, duration limit, and Stop policy;
 - `POST /api/v1/auth/login`, exchange the API token for a signed browser
   session;
 - `POST /api/v1/auth/logout`, clear the current browser session;
@@ -130,8 +133,12 @@ the most recent unexpired hold and never issue GPIO commands. The same service
 provides current conditions and a four-day forecast to the web navigation and
 Settings dialog.
 
-GPIO pin assignment stays in the root-managed configuration because changing
-it is a deployment operation, not routine sprinkler scheduling.
+The INI file remains the recovery baseline. Validated controller overrides are
+stored in SQLite. Station names, timezone, duration limits, and Stop behavior
+apply live. GPIO changes remain a deployment operation: they are saved as
+pending settings and only take ownership of new relay lines after a controlled
+service restart. The unconditional `stop-all` API remains available for safety
+and automation clients even when the dashboard button uses a narrower policy.
 
 ## Migration phases
 

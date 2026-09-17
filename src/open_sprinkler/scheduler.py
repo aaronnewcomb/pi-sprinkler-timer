@@ -40,6 +40,13 @@ class ScheduleRunner:
     def is_running(self) -> bool:
         return self._task is not None and not self._task.done()
 
+    @property
+    def timezone(self) -> ZoneInfo:
+        return self._timezone
+
+    def update_timezone(self, timezone: str) -> None:
+        self._timezone = ZoneInfo(timezone)
+
     async def start(self) -> None:
         if self.is_running:
             return
@@ -97,7 +104,7 @@ class ScheduleRunner:
             if status.active_run_id is None:
                 raise RuntimeError("Controller did not create a run ID")
             outcome = await self._controller.wait_for_run(status.active_run_id)
-            if outcome != "completed":
+            if outcome not in {"completed", "skipped"}:
                 LOGGER.info(
                     "Schedule %s stopped after run %s ended as %s",
                     schedule.id,

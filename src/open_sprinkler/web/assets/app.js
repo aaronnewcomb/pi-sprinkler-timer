@@ -5,7 +5,9 @@ const state = {
   schedules: [],
   rainDelay: null,
   weather: null,
+  controllerSettings: null,
   history: [],
+  editingScheduleId: null,
   refreshTimer: null,
   countdownTimer: null,
 };
@@ -18,6 +20,7 @@ const elements = {
   connectionBadge: document.querySelector("#connection-badge"),
   weatherButton: document.querySelector("#weather-button"),
   stopAllButton: document.querySelector("#stop-all-button"),
+  stopActionLabel: document.querySelector("#stop-action-label"),
   controllerTitle: document.querySelector("#controller-title"),
   controllerDetail: document.querySelector("#controller-detail"),
   holdStatus: document.querySelector("#hold-status"),
@@ -37,13 +40,19 @@ const elements = {
   weatherSettingsBadge: document.querySelector("#weather-settings-badge"),
   weatherCurrent: document.querySelector("#weather-current"),
   weatherForecast: document.querySelector("#weather-forecast"),
-  weatherControllerStatus: document.querySelector("#weather-controller-status"),
+  controllerSettingsForm: document.querySelector("#controller-settings-form"),
+  controllerStations: document.querySelector("#controller-stations"),
+  controllerSettingsError: document.querySelector("#controller-settings-error"),
+  controllerRestartNotice: document.querySelector("#controller-restart-notice"),
   scheduleList: document.querySelector("#schedule-list"),
   historyList: document.querySelector("#history-list"),
   scheduleDialog: document.querySelector("#schedule-dialog"),
   scheduleForm: document.querySelector("#schedule-form"),
   scheduleStations: document.querySelector("#schedule-stations"),
   scheduleError: document.querySelector("#schedule-error"),
+  scheduleHeading: document.querySelector("#schedule-form-heading"),
+  scheduleEyebrow: document.querySelector("#schedule-form-eyebrow"),
+  scheduleSubmitButton: document.querySelector("#schedule-submit-button"),
   toast: document.querySelector("#toast"),
 };
 
@@ -160,6 +169,14 @@ function renderStatus() {
   elements.activeStationMetric.textContent = active?.name || "None";
   elements.activeUntilMetric.textContent = formatTime(status.active_until);
   elements.stopAllButton.hidden = !active;
+  const stopAction = state.controllerSettings?.stop_action || "schedule";
+  elements.stopActionLabel.textContent = stopAction === "station"
+    ? "Stop current station"
+    : stopAction === "day"
+      ? "Stop watering for today"
+      : status.active_source === "schedule"
+        ? "Stop current schedule"
+        : "Stop current station";
   renderStations();
 }
 
@@ -187,7 +204,7 @@ function renderStations() {
     } else {
       input.type = "number";
       input.min = "1";
-      input.max = "120";
+      input.max = String(state.controllerSettings?.max_duration_minutes || 120);
       input.value = "10";
       input.setAttribute("aria-label", `${station.name} duration in minutes`);
       duration.append(input, element("span", "", "minutes"));
@@ -202,7 +219,8 @@ function renderStations() {
           notify(`${station.name} stopped`);
         } else {
           const minutes = Number(input.value);
-          if (!Number.isFinite(minutes) || minutes < 1 || minutes > 120) throw new Error("Choose 1 to 120 minutes");
+          const maximum = state.controllerSettings?.max_duration_minutes || 120;
+          if (!Number.isFinite(minutes) || minutes < 1 || minutes > maximum) throw new Error(`Choose 1 to ${maximum} minutes`);
           await api(`/api/v1/stations/${station.id}/start`, {
             method: "POST",
             body: JSON.stringify({ duration_seconds: Math.round(minutes * 60) }),
@@ -273,7 +291,6 @@ function renderWeather() {
   const enabled = weather.settings.enabled;
   elements.weatherSettingsBadge.textContent = enabled ? (weather.available ? "Active" : "Unavailable") : "Off";
   elements.weatherSettingsBadge.className = `status-pill ${enabled && weather.available ? "online" : "neutral"}`;
-  elements.weatherControllerStatus.textContent = enabled ? (weather.available ? "Active" : "Unavailable") : "Not configured";
   elements.weatherForecast.replaceChildren();
 
   if (!enabled) {
@@ -330,6 +347,9 @@ function renderSchedules() {
     main.append(copy);
 
     const actions = element("div", "list-actions");
+    const edit = element("button", "button ghost compact", "Edit");
+    edit.type = "button";
+    edit.addEventListener("click", () => openScheduleDialog(schedule));
     const toggle = element("button", `button compact ${schedule.enabled ? "secondary" : "ghost"}`, schedule.enabled ? "Enabled" : "Paused");
     toggle.type = "button";
     toggle.addEventListener("click", async () => {
@@ -351,7 +371,7 @@ function renderSchedules() {
         notify("Schedule deleted");
       } catch (error) { notify(error.message, true); }
     });
-    actions.append(toggle, remove);
+    actions.append(edit, toggle, remove);
     card.append(main, actions);
     elements.scheduleList.append(card);
   }
@@ -386,7 +406,7 @@ function renderScheduleStationOptions() {
     const duration = document.createElement("input");
     duration.type = "number";
     duration.min = "1";
-    duration.max = "120";
+    duration.max = String(state.controllerSettings?.max_duration_minutes || 120);
     duration.value = "10";
     duration.defaultValue = "10";
     duration.dataset.durationFor = station.id;
@@ -426,6 +446,12 @@ async function refreshWeather() {
   }
 }
 
+async function refreshControllerSettings() {
+  state.controllerSettings = await api("/api/v1/controller-settings");
+  renderControllerSettings();
+  renderStatus();
+}
+
 async function refreshHistory() {
   state.history = await api("/api/v1/history?limit=20");
   renderHistory();
@@ -434,7 +460,7 @@ async function refreshHistory() {
 async function refreshAll() {
   try {
     await refreshStatus();
-    await Promise.all([refreshSchedules(), refreshRainDelay(), refreshWeather(), refreshHistory()]);
+    await Promise.all([refreshSchedules(), refreshRainDelay(), refreshWeather(), refreshControllerSettings(), refreshHistory()]);
     renderScheduleStationOptions();
     clearInterval(state.refreshTimer);
     clearInterval(state.countdownTimer);
@@ -478,10 +504,11 @@ elements.loginForm.addEventListener("submit", async (event) => {
 
 elements.stopAllButton.addEventListener("click", async () => {
   try {
-    await api("/api/v1/actions/stop-all", { method: "POST" });
+    const result = await api("/api/v1/actions/configured-stop", { method: "POST" });
     await refreshStatus();
+    await refreshRainDelay();
     await refreshHistory();
-    notify("All watering stopped");
+    notify(result.action === "day" ? "Watering paused until tomorrow" : "Watering stopped");
   } catch (error) { notify(error.message, true); }
 });
 
@@ -501,8 +528,42 @@ function populateWeatherForm() {
   document.querySelector("#weather-delay-hours").value = settings.delay_hours_after_precipitation;
 }
 
+function renderControllerSettings() {
+  const settings = state.controllerSettings;
+  if (!settings) return;
+  elements.controllerStations.replaceChildren();
+  for (const station of settings.stations) {
+    const row = element("div", "controller-station-row");
+    row.append(element("strong", "", `#${station.id}`));
+    const nameLabel = element("label", "", "Station name");
+    const name = document.createElement("input");
+    name.type = "text";
+    name.maxLength = 100;
+    name.required = true;
+    name.value = station.name;
+    name.dataset.stationName = station.id;
+    nameLabel.append(name);
+    const pinLabel = element("label", "", "BCM GPIO");
+    const pin = document.createElement("input");
+    pin.type = "number";
+    pin.min = "0";
+    pin.max = "27";
+    pin.required = true;
+    pin.value = station.gpio_pin;
+    pin.dataset.stationPin = station.id;
+    pinLabel.append(pin);
+    row.append(nameLabel, pinLabel);
+    elements.controllerStations.append(row);
+  }
+  document.querySelector("#controller-timezone").value = settings.timezone;
+  document.querySelector("#controller-max-duration").value = settings.max_duration_minutes;
+  document.querySelector("#controller-stop-action").value = settings.stop_action;
+  elements.controllerRestartNotice.hidden = !settings.restart_required;
+}
+
 function showSettings(section = null) {
   populateWeatherForm();
+  renderControllerSettings();
   if (!elements.settingsDialog.open) elements.settingsDialog.showModal();
   if (section) window.setTimeout(() => section.scrollIntoView({ block: "start" }), 20);
 }
@@ -511,6 +572,33 @@ document.querySelector("#settings-button").addEventListener("click", () => showS
 document.querySelector("#manage-delay-button").addEventListener("click", () => showSettings());
 elements.weatherButton.addEventListener("click", () => showSettings(document.querySelector("#weather-settings-section")));
 document.querySelector("#close-settings-button").addEventListener("click", () => elements.settingsDialog.close());
+
+elements.controllerSettingsForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  elements.controllerSettingsError.textContent = "";
+  const stations = state.controllerSettings.stations.map((station) => ({
+    id: station.id,
+    name: elements.controllerStations.querySelector(`[data-station-name='${station.id}']`).value.trim(),
+    gpio_pin: Number(elements.controllerStations.querySelector(`[data-station-pin='${station.id}']`).value),
+  }));
+  try {
+    state.controllerSettings = await api("/api/v1/controller-settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        stations,
+        timezone: document.querySelector("#controller-timezone").value.trim(),
+        max_duration_minutes: Number(document.querySelector("#controller-max-duration").value),
+        stop_action: document.querySelector("#controller-stop-action").value,
+      }),
+    });
+    renderControllerSettings();
+    await refreshStatus();
+    renderScheduleStationOptions();
+    notify(state.controllerSettings.restart_required ? "Settings saved. Restart required for GPIO changes." : "Controller settings saved");
+  } catch (error) {
+    elements.controllerSettingsError.textContent = error.message;
+  }
+});
 
 async function setManualDelay(hours) {
   const until = new Date(Date.now() + hours * 60 * 60 * 1000);
@@ -584,11 +672,29 @@ document.querySelector("#refresh-weather-button").addEventListener("click", asyn
   } catch (error) { notify(error.message, true); }
 });
 
-document.querySelector("#add-schedule-button").addEventListener("click", () => {
+function openScheduleDialog(schedule = null) {
+  state.editingScheduleId = schedule?.id ?? null;
   elements.scheduleForm.reset();
+  renderScheduleStationOptions();
   elements.scheduleError.textContent = "";
+  elements.scheduleHeading.textContent = schedule ? "Edit schedule" : "Create schedule";
+  elements.scheduleEyebrow.textContent = schedule ? "Update automation" : "New automation";
+  elements.scheduleSubmitButton.textContent = schedule ? "Save changes" : "Create schedule";
+  if (schedule) {
+    elements.scheduleForm.elements.name.value = schedule.name;
+    elements.scheduleForm.elements.start_time.value = schedule.start_time.slice(0, 5);
+    for (const day of schedule.days_of_week) {
+      elements.scheduleForm.querySelector(`input[name='day'][value='${day}']`).checked = true;
+    }
+    for (const step of schedule.steps) {
+      elements.scheduleStations.querySelector(`[data-station-id='${step.station_id}']`).checked = true;
+      elements.scheduleStations.querySelector(`[data-duration-for='${step.station_id}']`).value = step.duration_seconds / 60;
+    }
+  }
   elements.scheduleDialog.showModal();
-});
+}
+
+document.querySelector("#add-schedule-button").addEventListener("click", () => openScheduleDialog());
 
 document.querySelector("#close-schedule-button").addEventListener("click", () => elements.scheduleDialog.close());
 document.querySelector("#cancel-schedule-button").addEventListener("click", () => elements.scheduleDialog.close());
@@ -610,11 +716,13 @@ elements.scheduleForm.addEventListener("submit", async (event) => {
     return;
   }
   try {
-    await api("/api/v1/schedules", {
-      method: "POST",
+    const editing = state.editingScheduleId !== null;
+    const existing = state.schedules.find((schedule) => schedule.id === state.editingScheduleId);
+    await api(editing ? `/api/v1/schedules/${state.editingScheduleId}` : "/api/v1/schedules", {
+      method: editing ? "PUT" : "POST",
       body: JSON.stringify({
         name: form.get("name"),
-        enabled: true,
+        enabled: existing?.enabled ?? true,
         start_time: form.get("start_time"),
         days_of_week: days,
         steps,
@@ -622,7 +730,7 @@ elements.scheduleForm.addEventListener("submit", async (event) => {
     });
     elements.scheduleDialog.close();
     await refreshSchedules();
-    notify("Schedule created");
+    notify(editing ? "Schedule updated" : "Schedule created");
   } catch (error) {
     elements.scheduleError.textContent = error.message;
   }

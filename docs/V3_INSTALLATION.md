@@ -240,6 +240,13 @@ switch directly between stations, confirm the active station displays a live
 countdown, set and clear both preset and custom rain delays, create a short
 schedule, and confirm its run appears in history.
 
+Open **Settings**, verify the station names, BCM GPIO pins, timezone, maximum
+run time, and Stop-button policy, then save. Changes other than GPIO pins apply
+immediately. If the page reports that a GPIO restart is required, disconnect
+valve power, restart `open-sprinkler-v3.service`, verify all relays remain off,
+and reconnect valve power only after testing each station. Create a schedule,
+use **Edit** to change it, and confirm the updated values survive a page reload.
+
 If weather automation will be used, open **Settings**, enable it, and provide a
 ZIP or postal code or latitude and longitude. Set the precipitation threshold
 in inches and the number of hours to hold schedules after the last expected

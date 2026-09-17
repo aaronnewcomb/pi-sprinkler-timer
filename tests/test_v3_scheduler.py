@@ -128,3 +128,17 @@ class SchedulerTests(unittest.TestCase):
 
         self.assertEqual(triggered, [schedule.id])
         self.assertEqual(len(controller.calls), 1)
+
+    def test_skipped_station_continues_current_schedule(self):
+        schedule = self.create_schedule()
+        controller = FakeController(["skipped", "completed"])
+        runner = ScheduleRunner(
+            self.repository,
+            controller,
+            timezone="America/Los_Angeles",
+        )
+
+        triggered = asyncio.run(runner.run_once(now=self.local_tuesday_0601))
+
+        self.assertEqual(triggered, [schedule.id])
+        self.assertEqual(len(controller.calls), 2)

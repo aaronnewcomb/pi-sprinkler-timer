@@ -13,7 +13,7 @@
     <div class="page-shell">
       <header class="site-header">
         <a class="brand" href="/" aria-label="Pi Sprinkler Timer home">
-          <span class="brand-mark" aria-hidden="true">PS</span>
+          <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 64 64" focusable="false" aria-hidden="true"><path d="M32 18c-11 0-19 8-19 18s8 18 19 18 19-8 19-18-8-18-19-18Z" fill="#d9efea"/><circle cx="21" cy="24" r="7" fill="#d9efea"/><circle cx="32" cy="20" r="7" fill="#d9efea"/><circle cx="43" cy="24" r="7" fill="#d9efea"/><path d="M27 14c-1-7 4-10 10-9-1 5-4 8-10 9Z" fill="#e89b48"/><path d="M25 31c0 4-3 7-7 7s-7-3-7-7c0-4 7-11 7-11s7 7 7 11Zm29 9c0 5-4 9-9 9s-9-4-9-9c0-5 9-14 9-14s9 9 9 14Z" fill="#4bb6d6"/><circle cx="29" cy="36" r="2.5" fill="#0b6267"/><circle cx="37" cy="36" r="2.5" fill="#0b6267"/></svg></span>
           <span>
             <strong>Pi Sprinkler Timer</strong>
             <small>Local irrigation control</small>
@@ -37,7 +37,7 @@
           </div>
           <button id="stop-all-button" class="button danger" type="button" hidden>
             <span aria-hidden="true">■</span>
-            Stop all watering
+            <span id="stop-action-label">Stop current schedule</span>
           </button>
         </section>
 
@@ -107,7 +107,7 @@
 
     <dialog id="login-dialog" class="modal" aria-labelledby="login-heading">
       <form id="login-form" class="modal-card">
-        <span class="modal-icon" aria-hidden="true">PS</span>
+        <span class="modal-icon" aria-hidden="true"><svg viewBox="0 0 64 64" focusable="false" aria-hidden="true"><path d="M32 18c-11 0-19 8-19 18s8 18 19 18 19-8 19-18-8-18-19-18Z" fill="#d9efea"/><circle cx="21" cy="24" r="7" fill="#d9efea"/><circle cx="32" cy="20" r="7" fill="#d9efea"/><circle cx="43" cy="24" r="7" fill="#d9efea"/><path d="M27 14c-1-7 4-10 10-9-1 5-4 8-10 9Z" fill="#e89b48"/><path d="M25 31c0 4-3 7-7 7s-7-3-7-7c0-4 7-11 7-11s7 7 7 11Zm29 9c0 5-4 9-9 9s-9-4-9-9c0-5 9-14 9-14s9 9 9 14Z" fill="#4bb6d6"/><circle cx="29" cy="36" r="2.5" fill="#0b6267"/><circle cx="37" cy="36" r="2.5" fill="#0b6267"/></svg></span>
         <p class="eyebrow">Private controller</p>
         <h2 id="login-heading">Sign in to Pi Sprinkler Timer</h2>
         <p class="muted">Enter the API token stored on this controller. It is exchanged for a browser session and is not saved by this page.</p>
@@ -212,12 +212,31 @@
 
         <section class="settings-section" aria-labelledby="controller-settings-heading">
           <h3 id="controller-settings-heading">Controller</h3>
-          <dl class="metric-list compact-metrics">
-            <div><dt>Browser connection</dt><dd>Local controller API</dd></div>
-            <div><dt>Status refresh</dt><dd>Every 5 seconds</dd></div>
-            <div><dt>Weather automation</dt><dd id="weather-controller-status">Not configured</dd></div>
-          </dl>
-          <p class="muted small">Station names, GPIO pins, timezone, and safety limits remain in the controller configuration file.</p>
+          <form id="controller-settings-form" class="settings-form">
+            <div id="controller-stations" class="controller-stations"></div>
+            <div class="form-grid">
+              <label>Timezone
+                <input id="controller-timezone" type="text" placeholder="America/Los_Angeles" required>
+              </label>
+              <label>Maximum run time
+                <div class="duration-field setting-value-field">
+                  <input id="controller-max-duration" type="number" min="1" max="1440" required>
+                  <span>minutes</span>
+                </div>
+              </label>
+            </div>
+            <label>Header Stop button
+              <select id="controller-stop-action">
+                <option value="station">Stop current station only</option>
+                <option value="schedule">Stop the current schedule</option>
+                <option value="day">Stop watering for the rest of today</option>
+              </select>
+            </label>
+            <p class="settings-note">Station names, timezone, run-time limit, and Stop behavior apply immediately. GPIO pin changes are saved but require a service restart before relay ownership changes.</p>
+            <p id="controller-restart-notice" class="form-warning" hidden>GPIO configuration changed. Restart open-sprinkler-v3.service when it is safe to transfer relay control.</p>
+            <p id="controller-settings-error" class="form-error" role="alert"></p>
+            <button class="button primary" type="submit">Save controller settings</button>
+          </form>
         </section>
       </div>
     </dialog>
@@ -226,7 +245,7 @@
       <form id="schedule-form" class="modal-card wide">
         <div class="modal-heading">
           <div>
-            <p class="eyebrow">New automation</p>
+            <p id="schedule-form-eyebrow" class="eyebrow">New automation</p>
             <h2 id="schedule-form-heading">Create schedule</h2>
           </div>
           <button id="close-schedule-button" class="icon-button" type="button" aria-label="Close">×</button>
@@ -261,7 +280,7 @@
         <p id="schedule-error" class="form-error" role="alert"></p>
         <div class="modal-actions">
           <button id="cancel-schedule-button" class="button ghost" type="button">Cancel</button>
-          <button class="button primary" type="submit">Create schedule</button>
+          <button id="schedule-submit-button" class="button primary" type="submit">Create schedule</button>
         </div>
       </form>
     </dialog>

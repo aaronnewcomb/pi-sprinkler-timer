@@ -5,9 +5,10 @@ from __future__ import annotations
 import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import (
     Depends,
@@ -26,6 +27,7 @@ from pydantic import BaseModel, Field
 from . import __version__
 from .auth import BrowserSessionManager
 from .controller import ControllerStatus, SprinklerController, UnknownStationError
+from .controller_settings import ControllerSettingsManager
 from .persistence import (
     Schedule,
     ScheduleNotFoundError,
@@ -56,6 +58,31 @@ class StatusResponse(BaseModel):
     active_station_id: int | None
     active_run_id: int | None
     active_until: datetime | None
+    active_source: str | None
+    active_schedule_id: int | None
+
+
+class ControllerStationSettings(BaseModel):
+    id: int
+    name: str = Field(min_length=1, max_length=100)
+    gpio_pin: int = Field(ge=0, le=27)
+
+
+class ControllerSettingsRequest(BaseModel):
+    stations: list[ControllerStationSettings] = Field(min_length=1)
+    timezone: str = Field(min_length=1, max_length=100)
+    max_duration_minutes: int = Field(ge=1, le=1440)
+    stop_action: str
+
+
+class ControllerSettingsResponse(ControllerSettingsRequest):
+    restart_required: bool
+
+
+class ConfiguredStopResponse(BaseModel):
+    action: str
+    hold_until: datetime | None
+    status: StatusResponse
 
 
 class StartStationRequest(BaseModel):
@@ -171,6 +198,7 @@ def create_app(
     repository: SQLiteRepository | None = None,
     scheduler: ScheduleRunner | None = None,
     weather: WeatherAutomation | None = None,
+    settings_manager: ControllerSettingsManager | None = None,
     secure_cookies: bool = True,
 ) -> FastAPI:
     """Create an API app around one controller instance."""
@@ -360,6 +388,80 @@ def create_app(
     async def stop_all() -> StatusResponse:
         return _status_response(await controller.stop_all())
 
+    @app.post(
+        "/api/v1/actions/configured-stop",
+        response_model=ConfiguredStopResponse,
+        dependencies=protected,
+    )
+    async def configured_stop() -> ConfiguredStopResponse:
+        manager = _require_settings_manager(settings_manager)
+        persistence = _require_repository(repository)
+        current = await controller.status()
+        action = manager.settings.stop_action
+        hold_until = None
+        if action == "station" and current.active_station_id is not None:
+            current = await controller.stop_station(
+                current.active_station_id, outcome="skipped"
+            )
+        else:
+            current = await controller.stop_all()
+        if action == "day":
+            local_now = datetime.now(UTC).astimezone(
+                ZoneInfo(manager.settings.timezone)
+            )
+            hold_until = datetime.combine(
+                local_now.date() + timedelta(days=1),
+                time.min,
+                tzinfo=local_now.tzinfo,
+            ).astimezone(UTC)
+            existing = persistence.get_manual_rain_delay()
+            hold_until = max(
+                item for item in (existing, hold_until) if item is not None
+            )
+            persistence.set_manual_rain_delay(hold_until)
+        return ConfiguredStopResponse(
+            action=action,
+            hold_until=hold_until,
+            status=_status_response(current),
+        )
+
+    @app.get(
+        "/api/v1/controller-settings",
+        response_model=ControllerSettingsResponse,
+        dependencies=protected,
+    )
+    async def get_controller_settings() -> ControllerSettingsResponse:
+        return _controller_settings_response(
+            _require_settings_manager(settings_manager)
+        )
+
+    @app.put(
+        "/api/v1/controller-settings",
+        response_model=ControllerSettingsResponse,
+        dependencies=protected,
+    )
+    async def update_controller_settings(
+        request: ControllerSettingsRequest,
+    ) -> ControllerSettingsResponse:
+        manager = _require_settings_manager(settings_manager)
+        if [station.id for station in request.stations] != list(
+            range(1, len(request.stations) + 1)
+        ):
+            raise HTTPException(
+                status_code=422, detail="Station IDs must be consecutive from 1"
+            )
+        try:
+            await manager.configure(
+                station_names=[station.name for station in request.stations],
+                gpio_pins=[station.gpio_pin for station in request.stations],
+                timezone=request.timezone,
+                max_duration_seconds=request.max_duration_minutes * 60,
+                stop_action=request.stop_action,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return _controller_settings_response(manager)
+
     @app.get(
         "/api/v1/schedules",
         response_model=list[ScheduleResponse],
@@ -546,6 +648,8 @@ def _status_response(controller_status: ControllerStatus) -> StatusResponse:
         active_station_id=controller_status.active_station_id,
         active_run_id=controller_status.active_run_id,
         active_until=controller_status.active_until,
+        active_source=controller_status.active_source,
+        active_schedule_id=controller_status.active_schedule_id,
     )
 
 
@@ -563,6 +667,34 @@ def _require_weather(weather: WeatherAutomation | None) -> WeatherAutomation:
             status_code=503, detail="Weather automation is not configured"
         )
     return weather
+
+
+def _require_settings_manager(
+    manager: ControllerSettingsManager | None,
+) -> ControllerSettingsManager:
+    if manager is None:
+        raise HTTPException(
+            status_code=503, detail="Controller settings are not configured"
+        )
+    return manager
+
+
+def _controller_settings_response(
+    manager: ControllerSettingsManager,
+) -> ControllerSettingsResponse:
+    settings = manager.settings
+    return ControllerSettingsResponse(
+        stations=[
+            ControllerStationSettings(
+                id=station.id, name=station.name, gpio_pin=station.pin
+            )
+            for station in settings.stations
+        ],
+        timezone=settings.timezone,
+        max_duration_minutes=settings.max_duration_seconds // 60,
+        stop_action=settings.stop_action,
+        restart_required=manager.restart_required,
+    )
 
 
 def _rain_delay_response(repository: SQLiteRepository) -> RainDelayResponse:

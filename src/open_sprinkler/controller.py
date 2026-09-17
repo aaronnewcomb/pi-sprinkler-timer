@@ -34,6 +34,8 @@ class ControllerStatus:
     active_station_id: int | None
     active_run_id: int | None
     active_until: datetime | None
+    active_source: str | None
+    active_schedule_id: int | None
 
 
 class UnknownStationError(ValueError):
@@ -65,12 +67,14 @@ class RunRecorder(Protocol):
 @dataclass(slots=True)
 class _Command:
     name: str
-    station_id: int | None
-    duration_seconds: int | None
-    source: str | None
-    schedule_id: int | None
-    outcome: str | None
     result: asyncio.Future[Any]
+    station_id: int | None = None
+    duration_seconds: int | None = None
+    source: str | None = None
+    schedule_id: int | None = None
+    outcome: str | None = None
+    station_names: tuple[str, ...] | None = None
+    max_duration_seconds: int | None = None
 
 
 class SprinklerController:
@@ -105,6 +109,8 @@ class SprinklerController:
         self._active_station_id: int | None = None
         self._active_run_id: int | None = None
         self._active_until: datetime | None = None
+        self._active_source: str | None = None
+        self._active_schedule_id: int | None = None
         self._next_transient_run_id = 1
         self._run_outcomes: OrderedDict[int, str] = OrderedDict()
         self._run_waiters: dict[int, asyncio.Future[str]] = {}
@@ -118,6 +124,10 @@ class SprinklerController:
         return frozenset(self._stations)
 
     @property
+    def station_definitions(self) -> tuple[StationDefinition, ...]:
+        return tuple(self._stations.values())
+
+    @property
     def is_running(self) -> bool:
         return self._worker_task is not None and not self._worker_task.done()
 
@@ -128,13 +138,15 @@ class SprinklerController:
         self._active_station_id = None
         self._active_run_id = None
         self._active_until = None
+        self._active_source = None
+        self._active_schedule_id = None
         self._worker_task = asyncio.create_task(
             self._command_worker(), name="open-sprinkler-controller"
         )
 
     async def close(self) -> None:
         if self.is_running:
-            await self._submit("stop_all", None, None, None, None, "interrupted")
+            await self._submit("stop_all", outcome="interrupted")
             await self._commands.put(None)
             assert self._worker_task is not None
             await self._worker_task
@@ -160,23 +172,39 @@ class SprinklerController:
             raise ValueError("Run source must not be empty")
         return await self._submit(
             "start",
-            station_id,
-            duration_seconds,
-            source.strip(),
-            schedule_id,
-            None,
+            station_id=station_id,
+            duration_seconds=duration_seconds,
+            source=source.strip(),
+            schedule_id=schedule_id,
         )
 
     async def stop_station(
         self, station_id: int, *, outcome: str = "stopped"
     ) -> ControllerStatus:
-        return await self._submit("stop", station_id, None, None, None, outcome)
+        return await self._submit("stop", station_id=station_id, outcome=outcome)
 
     async def stop_all(self) -> ControllerStatus:
-        return await self._submit("stop_all", None, None, None, None, "stopped")
+        return await self._submit("stop_all", outcome="stopped")
 
     async def status(self) -> ControllerStatus:
-        return await self._submit("status", None, None, None, None, None)
+        return await self._submit("status")
+
+    async def reconfigure(
+        self,
+        *,
+        station_names: list[str],
+        max_duration_seconds: int,
+    ) -> ControllerStatus:
+        names = tuple(name.strip() for name in station_names)
+        if len(names) != len(self._stations) or any(not name for name in names):
+            raise ValueError("A non-empty name is required for every station")
+        if max_duration_seconds < 60 or max_duration_seconds > 86_400:
+            raise ValueError("Maximum duration must be between 60 and 86400 seconds")
+        return await self._submit(
+            "configure",
+            station_names=names,
+            max_duration_seconds=max_duration_seconds,
+        )
 
     async def wait_for_run(self, run_id: int) -> str:
         if run_id in self._run_outcomes:
@@ -194,11 +222,14 @@ class SprinklerController:
     async def _submit(
         self,
         name: str,
-        station_id: int | None,
-        duration_seconds: int | None,
-        source: str | None,
-        schedule_id: int | None,
-        outcome: str | None,
+        *,
+        station_id: int | None = None,
+        duration_seconds: int | None = None,
+        source: str | None = None,
+        schedule_id: int | None = None,
+        outcome: str | None = None,
+        station_names: tuple[str, ...] | None = None,
+        max_duration_seconds: int | None = None,
     ) -> ControllerStatus:
         if not self.is_running:
             raise RuntimeError("Controller is not running")
@@ -206,13 +237,15 @@ class SprinklerController:
         result: asyncio.Future[ControllerStatus] = loop.create_future()
         await self._commands.put(
             _Command(
-                name,
-                station_id,
-                duration_seconds,
-                source,
-                schedule_id,
-                outcome,
-                result,
+                name=name,
+                result=result,
+                station_id=station_id,
+                duration_seconds=duration_seconds,
+                source=source,
+                schedule_id=schedule_id,
+                outcome=outcome,
+                station_names=station_names,
+                max_duration_seconds=max_duration_seconds,
             )
         )
         return await result
@@ -276,6 +309,8 @@ class SprinklerController:
             self._active_until = datetime.now(UTC) + timedelta(
                 seconds=command.duration_seconds
             )
+            self._active_source = command.source
+            self._active_schedule_id = command.schedule_id
             self._timer_task = asyncio.create_task(
                 self._expire_after(station.id, command.duration_seconds),
                 name=f"open-sprinkler-station-{station.id}-timer",
@@ -291,6 +326,16 @@ class SprinklerController:
             self._cancel_timer()
             self._relays.all_off()
             self._finish_active_run(command.outcome or "stopped")
+        elif command.name == "configure":
+            assert command.station_names is not None
+            assert command.max_duration_seconds is not None
+            self._stations = {
+                station.id: StationDefinition(station.id, name, station.pin)
+                for station, name in zip(
+                    self._stations.values(), command.station_names, strict=True
+                )
+            }
+            self._max_duration_seconds = command.max_duration_seconds
         elif command.name != "status":
             raise ValueError(f"Unsupported controller command: {command.name}")
         return self._snapshot()
@@ -314,6 +359,8 @@ class SprinklerController:
             active_station_id=self._active_station_id,
             active_run_id=self._active_run_id,
             active_until=self._active_until,
+            active_source=self._active_source,
+            active_schedule_id=self._active_schedule_id,
         )
 
     async def _expire_after(self, station_id: int, duration_seconds: int) -> None:
@@ -350,5 +397,7 @@ class SprinklerController:
         self._active_station_id = None
         self._active_run_id = None
         self._active_until = None
+        self._active_source = None
+        self._active_schedule_id = None
         if persistence_error is not None:
             raise persistence_error

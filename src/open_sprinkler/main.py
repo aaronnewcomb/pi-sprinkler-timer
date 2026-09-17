@@ -10,6 +10,7 @@ import uvicorn
 from .api import create_app
 from .config import load_settings, read_api_token
 from .controller import SprinklerController
+from .controller_settings import ControllerSettingsManager
 from .persistence import SQLiteRepository
 from .relay import GPIOZeroRelayBank
 from .scheduler import ScheduleRunner
@@ -33,21 +34,24 @@ def main() -> None:
     settings = load_settings(args.config)
     api_token = read_api_token(args.api_token_file)
     repository = SQLiteRepository.open(settings.database_path)
+    repository.initialize()
+    settings_manager = ControllerSettingsManager(repository, settings)
+    editable = settings_manager.settings
     try:
-        relays = GPIOZeroRelayBank([station.pin for station in settings.stations])
+        relays = GPIOZeroRelayBank([station.pin for station in editable.stations])
     except Exception:
         repository.close()
         raise
     controller = SprinklerController(
-        settings.stations,
+        list(editable.stations),
         relays,
-        max_duration_seconds=settings.max_duration_seconds,
+        max_duration_seconds=editable.max_duration_seconds,
         run_recorder=repository,
     )
     scheduler = ScheduleRunner(
         repository,
         controller,
-        timezone=settings.timezone,
+        timezone=editable.timezone,
         poll_seconds=settings.scheduler_poll_seconds,
         grace_seconds=settings.scheduler_grace_seconds,
     )
@@ -55,12 +59,14 @@ def main() -> None:
         repository,
         poll_seconds=settings.weather_poll_seconds,
     )
+    settings_manager.bind(controller, scheduler)
     app = create_app(
         controller,
         api_token,
         repository=repository,
         scheduler=scheduler,
         weather=weather,
+        settings_manager=settings_manager,
         secure_cookies=settings.secure_cookies,
     )
 

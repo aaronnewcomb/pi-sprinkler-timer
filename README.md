@@ -41,6 +41,12 @@ API key for the project's non-commercial use. Location and threshold settings
 are stored in the controller database and can be changed from the web Settings
 dialog.
 
+Controller Settings also manages station names, BCM GPIO pins, timezone, the
+maximum run time, and the header Stop-button policy. Names, timezone, limits,
+and Stop behavior apply immediately. GPIO changes are persisted but require a
+service restart before the controller claims different relay lines. Existing
+schedules can be opened with **Edit** and updated in place.
+
 (If you are looking for a more turnkey and feature rich solution for your RPi, I highly recommend [OpenSprinkler Pi](https://opensprinkler.com/product/opensprinkler-pi/) instead.)
 
 ## Parts

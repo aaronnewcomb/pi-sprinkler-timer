@@ -11,7 +11,9 @@ try:
     import httpx
 
     from open_sprinkler.api import create_app
+    from open_sprinkler.config import RuntimeSettings
     from open_sprinkler.controller import SprinklerController, StationDefinition
+    from open_sprinkler.controller_settings import ControllerSettingsManager
     from open_sprinkler.persistence import SQLiteRepository
     from open_sprinkler.weather import (
         DailyForecast,
@@ -97,21 +99,38 @@ def make_persistent_app():
 
 def make_browser_app():
     repository = SQLiteRepository.open(":memory:")
+    repository.initialize()
+    stations = [
+        StationDefinition(id=1, name="Front", pin=5),
+        StationDefinition(id=2, name="Back", pin=6),
+    ]
     controller = SprinklerController(
-        [
-            StationDefinition(id=1, name="Front", pin=5),
-            StationDefinition(id=2, name="Back", pin=6),
-        ],
+        stations,
         FakeRelayBank(),
         max_duration_seconds=7_200,
         run_recorder=repository,
     )
     weather = WeatherAutomation(repository, provider=FakeWeatherProvider())
+    runtime = RuntimeSettings(
+        stations=stations,
+        max_duration_seconds=7_200,
+        listen_host="127.0.0.1",
+        listen_port=8000,
+        secure_cookies=False,
+        database_path=Path(":memory:"),
+        timezone="America/Los_Angeles",
+        scheduler_poll_seconds=15,
+        scheduler_grace_seconds=300,
+        weather_poll_seconds=900,
+    )
+    manager = ControllerSettingsManager(repository, runtime)
+    manager.bind(controller)
     return create_app(
         controller,
         "test-token",
         repository=repository,
         weather=weather,
+        settings_manager=manager,
         secure_cookies=False,
     )
 
@@ -333,6 +352,41 @@ class ApiTests(unittest.TestCase):
                 },
             )
             self.assertEqual(response.status_code, 200)
+
+        asyncio.run(request_scenario(scenario, make_browser_app))
+
+    def test_controller_settings_persist_and_stage_gpio_restart(self):
+        async def scenario(client):
+            headers = {"Authorization": "Bearer test-token"}
+            response = await client.get("/api/v1/controller-settings", headers=headers)
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            payload.update(
+                timezone="UTC",
+                max_duration_minutes=30,
+                stop_action="day",
+            )
+            payload["stations"][0]["name"] = "Front Lawn"
+            payload["stations"][0]["gpio_pin"] = 12
+            payload.pop("restart_required")
+            response = await client.put(
+                "/api/v1/controller-settings", headers=headers, json=payload
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.json()["restart_required"])
+            self.assertEqual(response.json()["stations"][0]["name"], "Front Lawn")
+
+            response = await client.post(
+                "/api/v1/stations/1/start",
+                headers=headers,
+                json={"duration_seconds": 30},
+            )
+            self.assertEqual(response.json()["stations"][0]["name"], "Front Lawn")
+            response = await client.post(
+                "/api/v1/actions/configured-stop", headers=headers
+            )
+            self.assertEqual(response.json()["action"], "day")
+            self.assertIsNotNone(response.json()["hold_until"])
 
         asyncio.run(request_scenario(scenario, make_browser_app))
 
