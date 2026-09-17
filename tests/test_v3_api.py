@@ -270,7 +270,7 @@ class ApiTests(unittest.TestCase):
         async def scenario(client):
             response = await client.get("/")
             self.assertEqual(response.status_code, 200)
-            self.assertIn("Open Sprinkler", response.text)
+            self.assertIn("Pi Sprinkler Timer", response.text)
             self.assertIn(
                 "default-src 'self'", response.headers["content-security-policy"]
             )

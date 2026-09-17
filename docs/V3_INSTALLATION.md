@@ -1,4 +1,4 @@
-# Open Sprinkler 3.0 test installation
+# Pi Sprinkler Timer 3.0 test installation
 
 This procedure prepares a separate Raspberry Pi 4 for 3.0 acceptance. Keep the
 working 2.0 controller and its boot media unchanged. Version 3.0 must pass the
@@ -85,7 +85,7 @@ or the repository:
 ```bash
 sudo install -m 0640 -o root -g open-sprinkler /dev/null \
     /etc/open-sprinkler/api-token
-sudo systemd-ask-password "Open Sprinkler API token" | \
+sudo systemd-ask-password "Pi Sprinkler Timer API token" | \
     sudo tee /etc/open-sprinkler/api-token >/dev/null
 ```
 
@@ -228,7 +228,7 @@ curl --fail --show-error http://127.0.0.1/
 ```
 
 The API must listen only on `127.0.0.1:8000`, and the lighttpd request must
-return the Open Sprinkler page. Open the controller from another computer at
+return the Pi Sprinkler Timer page. Open the controller from another computer at
 `http://CONTROLLER-IP/` for Option A or `https://CONTROLLER-IP/` for Option B.
 Sign in and confirm every station reports off. Test each relay individually,
 switch directly between stations, set and clear a rain delay, create a short

@@ -14,6 +14,7 @@ const elements = {
   loginError: document.querySelector("#login-error"),
   tokenInput: document.querySelector("#token-input"),
   connectionBadge: document.querySelector("#connection-badge"),
+  stopAllButton: document.querySelector("#stop-all-button"),
   controllerTitle: document.querySelector("#controller-title"),
   controllerDetail: document.querySelector("#controller-detail"),
   stationsGrid: document.querySelector("#stations-grid"),
@@ -22,6 +23,9 @@ const elements = {
   scheduleCountMetric: document.querySelector("#schedule-count-metric"),
   delayBadge: document.querySelector("#delay-badge"),
   delayDetail: document.querySelector("#delay-detail"),
+  settingsDialog: document.querySelector("#settings-dialog"),
+  settingsDelayBadge: document.querySelector("#settings-delay-badge"),
+  settingsDelayDetail: document.querySelector("#settings-delay-detail"),
   scheduleList: document.querySelector("#schedule-list"),
   historyList: document.querySelector("#history-list"),
   scheduleDialog: document.querySelector("#schedule-dialog"),
@@ -83,8 +87,11 @@ function hideLogin() {
 }
 
 function setConnected(connected) {
-  elements.connectionBadge.textContent = connected ? "Connected" : "Offline";
+  elements.connectionBadge.textContent = connected ? "Controller online" : "Controller unavailable";
   elements.connectionBadge.className = `status-pill ${connected ? "online" : "offline"}`;
+  elements.connectionBadge.title = connected
+    ? "Authenticated and receiving status updates from the local controller"
+    : "The browser cannot currently reach the local controller";
 }
 
 function formatTime(value) {
@@ -123,6 +130,7 @@ function renderStatus() {
     : "No station is currently active.";
   elements.activeStationMetric.textContent = active?.name || "None";
   elements.activeUntilMetric.textContent = formatTime(status.active_until);
+  elements.stopAllButton.hidden = !active;
   renderStations();
 }
 
@@ -179,11 +187,15 @@ function renderStations() {
 
 function renderRainDelay() {
   const active = state.rainDelay?.active;
-  elements.delayBadge.textContent = active ? "Delayed" : "None";
-  elements.delayBadge.className = `status-pill ${active ? "watering" : "neutral"}`;
-  elements.delayDetail.textContent = active
+  const detail = active
     ? `Schedules resume ${formatDateTime(state.rainDelay.until)}.`
-    : "Scheduled watering is active.";
+    : "Scheduled programs may run.";
+  elements.delayBadge.textContent = active ? "Schedules paused" : "Schedules active";
+  elements.delayBadge.className = `status-pill ${active ? "watering" : "online"}`;
+  elements.delayDetail.textContent = detail;
+  elements.settingsDelayBadge.textContent = active ? "Rain delay on" : "No delay";
+  elements.settingsDelayBadge.className = `status-pill ${active ? "watering" : "online"}`;
+  elements.settingsDelayDetail.textContent = detail;
 }
 
 function daySummary(days) {
@@ -338,7 +350,7 @@ elements.loginForm.addEventListener("submit", async (event) => {
   }
 });
 
-document.querySelector("#stop-all-button").addEventListener("click", async () => {
+elements.stopAllButton.addEventListener("click", async () => {
   try {
     await api("/api/v1/actions/stop-all", { method: "POST" });
     await refreshStatus();
@@ -351,6 +363,14 @@ document.querySelector("#logout-button").addEventListener("click", async () => {
   try { await api("/api/v1/auth/logout", { method: "POST" }); } catch (_error) { /* Session is cleared locally below. */ }
   showLogin();
 });
+
+function showSettings() {
+  if (!elements.settingsDialog.open) elements.settingsDialog.showModal();
+}
+
+document.querySelector("#settings-button").addEventListener("click", showSettings);
+document.querySelector("#manage-delay-button").addEventListener("click", showSettings);
+document.querySelector("#close-settings-button").addEventListener("click", () => elements.settingsDialog.close());
 
 document.querySelectorAll(".delay-button").forEach((button) => {
   button.addEventListener("click", async () => {

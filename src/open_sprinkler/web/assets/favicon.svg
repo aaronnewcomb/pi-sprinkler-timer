@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Open Sprinkler">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Pi Sprinkler Timer">
   <rect width="64" height="64" rx="18" fill="#0b6267"/>
   <path d="M32 12c-8 11-15 20-15 29a15 15 0 0 0 30 0c0-9-7-18-15-29Z" fill="#d9efea"/>
   <path d="M24 43c2 4 5 6 10 6" fill="none" stroke="#0b6267" stroke-linecap="round" stroke-width="4"/>

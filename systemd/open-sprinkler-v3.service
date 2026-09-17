@@ -1,5 +1,5 @@
 [Unit]
-Description=Open Sprinkler 3.0 controller and web API
+Description=Pi Sprinkler Timer 3.0 controller and web API
 After=local-fs.target network.target
 
 [Service]

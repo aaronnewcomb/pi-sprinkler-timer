@@ -54,6 +54,20 @@ class DeploymentTests(unittest.TestCase):
 
         self.assertIn('duration.defaultValue = "10"', script)
 
+    def test_dashboard_explains_connection_and_rain_delay_behavior(self):
+        web_root = ROOT / "src" / "open_sprinkler" / "web"
+        page = (web_root / "index.html").read_text(encoding="utf-8")
+        script = (web_root / "assets" / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn("Pi Sprinkler Timer", page)
+        self.assertIn('id="settings-dialog"', page)
+        self.assertIn("does not use weather data", page)
+        self.assertIn(
+            'id="stop-all-button" class="button danger" type="button" hidden', page
+        )
+        self.assertIn("elements.stopAllButton.hidden = !active", script)
+        self.assertIn("Controller online", script)
+
     def test_installation_guide_has_complete_tls_paths(self):
         guide = (ROOT / "docs" / "V3_INSTALLATION.md").read_text(encoding="utf-8")
 

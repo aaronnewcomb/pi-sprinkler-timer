@@ -16,7 +16,7 @@ from .scheduler import ScheduleRunner
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run Open Sprinkler 3.0")
+    parser = argparse.ArgumentParser(description="Run Pi Sprinkler Timer 3.0")
     parser.add_argument(
         "--config",
         type=Path,

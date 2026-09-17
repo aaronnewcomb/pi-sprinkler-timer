@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#0b3a3e">
-    <title>Open Sprinkler</title>
+    <title>Pi Sprinkler Timer</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/assets/styles.css">
     <script src="/assets/app.js" defer></script>
@@ -12,15 +12,16 @@
   <body>
     <div class="page-shell">
       <header class="site-header">
-        <a class="brand" href="/" aria-label="Open Sprinkler home">
-          <span class="brand-mark" aria-hidden="true">OS</span>
+        <a class="brand" href="/" aria-label="Pi Sprinkler Timer home">
+          <span class="brand-mark" aria-hidden="true">PS</span>
           <span>
-            <strong>Open Sprinkler</strong>
+            <strong>Pi Sprinkler Timer</strong>
             <small>Local irrigation control</small>
           </span>
         </a>
         <div class="header-actions">
-          <span id="connection-badge" class="status-pill offline">Offline</span>
+          <span id="connection-badge" class="status-pill neutral" title="Checking the local controller">Checking controller</span>
+          <button id="settings-button" class="button ghost compact" type="button">Settings</button>
           <button id="logout-button" class="button ghost compact" type="button">Log out</button>
         </div>
       </header>
@@ -32,7 +33,7 @@
             <h1 id="controller-title">Checking the yard...</h1>
             <p id="controller-detail" class="muted">Connecting to the local controller.</p>
           </div>
-          <button id="stop-all-button" class="button danger" type="button">
+          <button id="stop-all-button" class="button danger" type="button" hidden>
             <span aria-hidden="true">■</span>
             Stop all watering
           </button>
@@ -53,18 +54,13 @@
           <section class="panel" aria-labelledby="delay-heading">
             <div class="section-heading compact-heading">
               <div>
-                <p class="eyebrow">Weather hold</p>
-                <h2 id="delay-heading">Rain delay</h2>
+                <p class="eyebrow">Schedule control</p>
+                <h2 id="delay-heading">Schedule hold</h2>
               </div>
-              <span id="delay-badge" class="status-pill neutral">None</span>
+              <span id="delay-badge" class="status-pill online">Schedules active</span>
             </div>
-            <p id="delay-detail" class="muted">Scheduled watering is active.</p>
-            <div class="button-row">
-              <button class="button secondary delay-button" data-hours="24" type="button">24 hours</button>
-              <button class="button secondary delay-button" data-hours="48" type="button">48 hours</button>
-              <button class="button secondary delay-button" data-hours="72" type="button">72 hours</button>
-              <button id="clear-delay-button" class="button ghost" type="button">Clear</button>
-            </div>
+            <p id="delay-detail" class="muted">Scheduled programs may run.</p>
+            <button id="manage-delay-button" class="button secondary" type="button">Manage schedule hold</button>
           </section>
 
           <section class="panel" aria-labelledby="quick-heading">
@@ -102,24 +98,64 @@
       </main>
 
       <footer>
-        <span>Open Sprinkler 3.0</span>
+        <span>Pi Sprinkler Timer 3.0</span>
         <span>Local first. Valve safe.</span>
       </footer>
     </div>
 
     <dialog id="login-dialog" class="modal" aria-labelledby="login-heading">
       <form id="login-form" class="modal-card">
-        <span class="modal-icon" aria-hidden="true">OS</span>
+        <span class="modal-icon" aria-hidden="true">PS</span>
         <p class="eyebrow">Private controller</p>
-        <h2 id="login-heading">Sign in to your sprinkler</h2>
-        <p class="muted">Enter the API token stored on this controller. It is exchanged for a secure browser session and is not saved by this page.</p>
+        <h2 id="login-heading">Sign in to Pi Sprinkler Timer</h2>
+        <p class="muted">Enter the API token stored on this controller. It is exchanged for a browser session and is not saved by this page.</p>
         <label>
           API token
           <input id="token-input" name="token" type="password" autocomplete="current-password" required>
         </label>
         <p id="login-error" class="form-error" role="alert"></p>
-        <button class="button primary full" type="submit">Connect securely</button>
+        <button class="button primary full" type="submit">Connect to controller</button>
       </form>
+    </dialog>
+
+    <dialog id="settings-dialog" class="modal" aria-labelledby="settings-heading">
+      <div class="modal-card wide">
+        <div class="modal-heading">
+          <div>
+            <p class="eyebrow">Controller options</p>
+            <h2 id="settings-heading">Settings</h2>
+          </div>
+          <button id="close-settings-button" class="icon-button" type="button" aria-label="Close settings">×</button>
+        </div>
+
+        <section class="settings-section" aria-labelledby="rain-delay-settings-heading">
+          <div class="section-heading compact-heading">
+            <div>
+              <h3 id="rain-delay-settings-heading">Rain delay</h3>
+              <p class="muted small">Temporarily pause new scheduled programs.</p>
+            </div>
+            <span id="settings-delay-badge" class="status-pill online">No delay</span>
+          </div>
+          <p id="settings-delay-detail" class="muted">Scheduled programs may run.</p>
+          <p class="settings-note">A rain delay does not use weather data, stop a station that is already running, or prevent manual watering.</p>
+          <div class="button-row">
+            <button class="button secondary delay-button" data-hours="24" type="button">24 hours</button>
+            <button class="button secondary delay-button" data-hours="48" type="button">48 hours</button>
+            <button class="button secondary delay-button" data-hours="72" type="button">72 hours</button>
+            <button id="clear-delay-button" class="button ghost" type="button">Clear delay</button>
+          </div>
+        </section>
+
+        <section class="settings-section" aria-labelledby="controller-settings-heading">
+          <h3 id="controller-settings-heading">Controller</h3>
+          <dl class="metric-list compact-metrics">
+            <div><dt>Browser connection</dt><dd>Local controller API</dd></div>
+            <div><dt>Status refresh</dt><dd>Every 5 seconds</dd></div>
+            <div><dt>Weather automation</dt><dd>Not configured</dd></div>
+          </dl>
+          <p class="muted small">Station names, GPIO pins, timezone, and safety limits remain in the controller configuration file.</p>
+        </section>
+      </div>
     </dialog>
 
     <dialog id="schedule-dialog" class="modal" aria-labelledby="schedule-form-heading">

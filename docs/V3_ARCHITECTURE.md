@@ -1,4 +1,4 @@
-# Open Sprinkler 3.0 architecture
+# Pi Sprinkler Timer 3.0 architecture
 
 ## Goals
 
@@ -6,6 +6,11 @@ Version 3.0 will replace the CGI scripts and private TCP command protocol with
 one local-first application that owns the web interface, schedules, API, and
 GPIO hardware. The tested `v2.0.0` release remains the rollback point while
 3.0 is developed on a separate branch.
+
+Legacy internal identifiers such as the `open-sprinkler-v3.service` unit,
+filesystem paths, Python package, cookies, and API headers remain stable during
+3.0 development. Renaming those deployment interfaces would add migration risk
+without changing the user-facing product name.
 
 The design must:
 
@@ -103,6 +108,12 @@ transactions and avoids concurrent INI rewrites. Schedule claims are atomic
 and limited to one run per local date. A bounded grace window avoids starting a
 morning program hours late after a long outage. Any unfinished station run is
 marked `interrupted` when the application initializes after a restart.
+
+The current rain delay is a manual schedule hold. While active, it prevents new
+scheduled programs from starting and clears itself after its expiration time.
+It does not read weather data, interrupt a station that is already running, or
+block manual and API station starts. A future weather adapter can set the same
+hold through the versioned API without adding a second GPIO control path.
 
 GPIO pin assignment stays in the root-managed configuration because changing
 it is a deployment operation, not routine sprinkler scheduling.

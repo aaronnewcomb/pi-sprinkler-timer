@@ -9,7 +9,7 @@ rest:
     headers:
       Authorization: !secret open_sprinkler_authorization
     sensor:
-      - name: Open Sprinkler active station
+      - name: Pi Sprinkler Timer active station
         unique_id: open_sprinkler_active_station
         value_template: "{{ value_json.active_station_id | default('none', true) }}"
         json_attributes:

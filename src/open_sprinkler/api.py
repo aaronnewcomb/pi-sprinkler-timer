@@ -1,4 +1,4 @@
-"""FastAPI application for Open Sprinkler 3.0."""
+"""FastAPI application for Pi Sprinkler Timer 3.0."""
 
 from __future__ import annotations
 
@@ -145,7 +145,7 @@ def create_app(
                     repository.close()
 
     app = FastAPI(
-        title="Open Sprinkler API",
+        title="Pi Sprinkler Timer API",
         version=__version__,
         lifespan=lifespan,
     )

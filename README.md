@@ -1,4 +1,4 @@
-# pi-sprinkler-timer
+# Pi Sprinkler Timer
 A DIY web-driven scheduler for Raspberry Pi OS, written in Python 3 and served by lighttpd. GPIO Zero controls active-low relay boards through the `lgpio` backend. The scheduler runs as a systemd service.
 
 ## Version 3 development
@@ -13,6 +13,11 @@ history, a starter Home Assistant configuration, and a responsive web
 dashboard. API clients use bearer authentication. Browsers exchange that token
 for a signed session with CSRF protection. See
 [the 3.0 architecture and phased roadmap](docs/V3_ARCHITECTURE.md).
+
+The 3.0 user interface and documentation use the Pi Sprinkler Timer name. The
+existing `open-sprinkler` package, service, configuration, and API identifiers
+remain unchanged during 3.0 development so current test installations continue
+to work.
 
 Develop and test 3.0 in an isolated environment with
 [uv](https://docs.astral.sh/uv/):
@@ -85,7 +90,7 @@ Check that the target is new because `htdigest -c` creates or replaces the file:
 
 ```bash
 sudo test ! -e /etc/lighttpd/open-sprinkler.htdigest
-sudo htdigest -c /etc/lighttpd/open-sprinkler.htdigest "Open Sprinkler" admin
+sudo htdigest -c /etc/lighttpd/open-sprinkler.htdigest "Pi Sprinkler Timer" admin
 sudo chown root:www-data /etc/lighttpd/open-sprinkler.htdigest
 sudo chmod 640 /etc/lighttpd/open-sprinkler.htdigest
 ```
@@ -109,7 +114,7 @@ auth.backend.htdigest.userfile = "/etc/lighttpd/open-sprinkler.htdigest"
 auth.require = (
     "/cgi-bin/" => (
         "method"  => "digest",
-        "realm"   => "Open Sprinkler",
+        "realm"   => "Pi Sprinkler Timer",
         "require" => "user=admin"
     )
 )
