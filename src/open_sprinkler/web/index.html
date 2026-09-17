@@ -21,6 +21,7 @@
         </a>
         <div class="header-actions">
           <span id="connection-badge" class="status-pill neutral" title="Checking the local controller">Checking controller</span>
+          <button id="weather-button" class="button ghost compact weather-nav" type="button" title="Open weather settings">Weather off</button>
           <button id="settings-button" class="button ghost compact" type="button">Settings</button>
           <button id="logout-button" class="button ghost compact" type="button">Log out</button>
         </div>
@@ -32,6 +33,7 @@
             <p class="eyebrow">Controller status</p>
             <h1 id="controller-title">Checking the yard...</h1>
             <p id="controller-detail" class="muted">Connecting to the local controller.</p>
+            <span id="hold-status" class="status-pill watering" hidden></span>
           </div>
           <button id="stop-all-button" class="button danger" type="button" hidden>
             <span aria-hidden="true">■</span>
@@ -131,19 +133,81 @@
         <section class="settings-section" aria-labelledby="rain-delay-settings-heading">
           <div class="section-heading compact-heading">
             <div>
-              <h3 id="rain-delay-settings-heading">Rain delay</h3>
+              <h3 id="rain-delay-settings-heading">Schedule holds</h3>
               <p class="muted small">Temporarily pause new scheduled programs.</p>
             </div>
             <span id="settings-delay-badge" class="status-pill online">No delay</span>
           </div>
           <p id="settings-delay-detail" class="muted">Scheduled programs may run.</p>
-          <p class="settings-note">A rain delay does not use weather data, stop a station that is already running, or prevent manual watering.</p>
+          <p class="settings-note">Preset and custom controls create a manual hold. Weather automation manages a separate automatic hold. Neither type stops a station that is already running or prevents manual watering.</p>
           <div class="button-row">
             <button class="button secondary delay-button" data-hours="24" type="button">24 hours</button>
             <button class="button secondary delay-button" data-hours="48" type="button">48 hours</button>
             <button class="button secondary delay-button" data-hours="72" type="button">72 hours</button>
-            <button id="clear-delay-button" class="button ghost" type="button">Clear delay</button>
+            <button id="clear-delay-button" class="button ghost" type="button">Clear manual hold</button>
           </div>
+          <div class="custom-delay-row">
+            <label for="custom-delay-hours">Custom delay</label>
+            <div class="duration-field">
+              <input id="custom-delay-hours" type="number" min="1" max="336" step="1" value="12">
+              <span>hours</span>
+            </div>
+            <button id="set-custom-delay-button" class="button secondary" type="button">Set delay</button>
+          </div>
+        </section>
+
+        <section id="weather-settings-section" class="settings-section" aria-labelledby="weather-settings-heading">
+          <div class="section-heading compact-heading">
+            <div>
+              <h3 id="weather-settings-heading">Weather automation</h3>
+              <p class="muted small">Use forecast precipitation to pause scheduled programs.</p>
+            </div>
+            <span id="weather-settings-badge" class="status-pill neutral">Off</span>
+          </div>
+          <form id="weather-form" class="settings-form">
+            <label class="toggle-row">
+              <input id="weather-enabled" name="enabled" type="checkbox">
+              Enable automatic weather delays
+            </label>
+            <p class="muted small">Enter a ZIP or postal code, or leave it blank and enter coordinates.</p>
+            <div class="form-grid">
+              <label>
+                ZIP or postal code
+                <input id="weather-postal-code" name="postal_code" type="text" maxlength="100" placeholder="95014">
+              </label>
+              <label>
+                Latitude
+                <input id="weather-latitude" name="latitude" type="number" min="-90" max="90" step="0.0001" placeholder="37.3230">
+              </label>
+              <label>
+                Longitude
+                <input id="weather-longitude" name="longitude" type="number" min="-180" max="180" step="0.0001" placeholder="-122.0322">
+              </label>
+              <label>
+                Precipitation trigger
+                <div class="duration-field setting-value-field">
+                  <input id="weather-threshold" name="threshold" type="number" min="0.01" max="10" step="0.01" value="0.25" required>
+                  <span>inches</span>
+                </div>
+              </label>
+              <label>
+                Delay after precipitation
+                <div class="duration-field setting-value-field">
+                  <input id="weather-delay-hours" name="delay_hours" type="number" min="1" max="336" step="1" value="24" required>
+                  <span>hours</span>
+                </div>
+              </label>
+            </div>
+            <p class="muted small">The trigger is total precipitation across the previous 24 hours and forecast 24 hours. The hold ends after the final wet hour plus the configured delay.</p>
+            <p id="weather-form-error" class="form-error" role="alert"></p>
+            <div class="button-row">
+              <button class="button primary" type="submit">Save weather settings</button>
+              <button id="refresh-weather-button" class="button ghost" type="button">Refresh weather</button>
+            </div>
+          </form>
+          <div id="weather-current" class="weather-current muted">Weather automation is off.</div>
+          <div id="weather-forecast" class="weather-forecast"></div>
+          <p class="muted small">Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>. Forecasts can be wrong, so review active holds before relying on automation.</p>
         </section>
 
         <section class="settings-section" aria-labelledby="controller-settings-heading">
@@ -151,7 +215,7 @@
           <dl class="metric-list compact-metrics">
             <div><dt>Browser connection</dt><dd>Local controller API</dd></div>
             <div><dt>Status refresh</dt><dd>Every 5 seconds</dd></div>
-            <div><dt>Weather automation</dt><dd>Not configured</dd></div>
+            <div><dt>Weather automation</dt><dd id="weather-controller-status">Not configured</dd></div>
           </dl>
           <p class="muted small">Station names, GPIO pins, timezone, and safety limits remain in the controller configuration file.</p>
         </section>

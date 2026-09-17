@@ -13,6 +13,13 @@ try:
     from open_sprinkler.api import create_app
     from open_sprinkler.controller import SprinklerController, StationDefinition
     from open_sprinkler.persistence import SQLiteRepository
+    from open_sprinkler.weather import (
+        DailyForecast,
+        HourlyPrecipitation,
+        ResolvedLocation,
+        WeatherAutomation,
+        WeatherSnapshot,
+    )
 except ModuleNotFoundError:
     V3_API_DEPENDENCIES_AVAILABLE = False
 else:
@@ -38,6 +45,28 @@ class FakeRelayBank:
 
     def close(self):
         pass
+
+
+class FakeWeatherProvider:
+    async def resolve_location(self, _postal_code):
+        return ResolvedLocation(37.323, -122.0322, "Cupertino, California, US")
+
+    async def forecast(self, _latitude, _longitude):
+        now = datetime.now(UTC)
+        return WeatherSnapshot(
+            observed_at=now,
+            temperature_f=68,
+            weather_code=61,
+            precipitation_inches=0.05,
+            hourly_precipitation=(
+                HourlyPrecipitation(now, 0.15),
+                HourlyPrecipitation(now + timedelta(hours=1), 0.15),
+            ),
+            daily=(
+                DailyForecast(now.date(), 61, 71, 54, 0.3, 80),
+                DailyForecast((now + timedelta(days=1)).date(), 2, 74, 52, 0, 10),
+            ),
+        )
 
 
 def make_app():
@@ -77,10 +106,12 @@ def make_browser_app():
         max_duration_seconds=7_200,
         run_recorder=repository,
     )
+    weather = WeatherAutomation(repository, provider=FakeWeatherProvider())
     return create_app(
         controller,
         "test-token",
         repository=repository,
+        weather=weather,
         secure_cookies=False,
     )
 
@@ -241,6 +272,45 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(response.status_code, 204)
 
         asyncio.run(request_scenario(scenario, make_persistent_app))
+
+    def test_weather_settings_create_independent_automatic_hold(self):
+        async def scenario(client):
+            headers = {"Authorization": "Bearer test-token"}
+            response = await client.put(
+                "/api/v1/weather/settings",
+                headers=headers,
+                json={
+                    "enabled": True,
+                    "postal_code": "95014",
+                    "precipitation_threshold_inches": 0.25,
+                    "delay_hours_after_precipitation": 24,
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.json()["available"])
+            self.assertEqual(
+                response.json()["settings"]["location_name"],
+                "Cupertino, California, US",
+            )
+
+            response = await client.get("/api/v1/rain-delay", headers=headers)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["sources"], ["weather"])
+
+            manual_until = datetime.now(UTC) + timedelta(hours=48)
+            response = await client.put(
+                "/api/v1/rain-delay",
+                headers=headers,
+                json={"until": manual_until.isoformat()},
+            )
+            self.assertEqual(response.json()["sources"], ["manual", "weather"])
+
+            response = await client.delete("/api/v1/rain-delay", headers=headers)
+            self.assertEqual(response.status_code, 204)
+            response = await client.get("/api/v1/rain-delay", headers=headers)
+            self.assertEqual(response.json()["sources"], ["weather"])
+
+        asyncio.run(request_scenario(scenario, make_browser_app))
 
     def test_browser_session_requires_csrf_for_control(self):
         async def scenario(client):

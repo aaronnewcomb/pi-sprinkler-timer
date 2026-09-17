@@ -242,25 +242,66 @@ class SQLiteRepository:
             )
         return cursor.rowcount == 1
 
-    def set_rain_delay(self, until: datetime | None) -> None:
-        value = _as_utc(until).isoformat() if until is not None else None
+    def set_controller_state(self, key: str, value: str | None) -> None:
+        if not key.strip():
+            raise ValueError("Controller state key must not be empty")
         with self._connection:
             self._connection.execute(
                 """
                 INSERT INTO controller_state(key, value)
-                VALUES ('rain_delay_until_utc', ?)
+                VALUES (?, ?)
                 ON CONFLICT(key) DO UPDATE SET value = excluded.value
                 """,
-                (value,),
+                (key, value),
             )
 
-    def get_rain_delay(self) -> datetime | None:
+    def get_controller_state(self, key: str) -> str | None:
         row = self._connection.execute(
-            "SELECT value FROM controller_state WHERE key = 'rain_delay_until_utc'"
+            "SELECT value FROM controller_state WHERE key = ?", (key,)
         ).fetchone()
-        if row is None or row["value"] is None:
-            return None
-        return datetime.fromisoformat(row["value"])
+        return None if row is None else row["value"]
+
+    def set_rain_delay(self, until: datetime | None) -> None:
+        """Set the user-controlled rain delay retained by the v1 API."""
+        self.set_manual_rain_delay(until)
+
+    def set_manual_rain_delay(self, until: datetime | None) -> None:
+        value = _as_utc(until).isoformat() if until is not None else None
+        self.set_controller_state("rain_delay_until_utc", value)
+
+    def set_weather_rain_delay(self, until: datetime | None) -> None:
+        value = _as_utc(until).isoformat() if until is not None else None
+        self.set_controller_state("weather_delay_until_utc", value)
+
+    def get_manual_rain_delay(self) -> datetime | None:
+        return self._datetime_controller_state("rain_delay_until_utc")
+
+    def get_weather_rain_delay(self) -> datetime | None:
+        return self._datetime_controller_state("weather_delay_until_utc")
+
+    def get_rain_delay(self) -> datetime | None:
+        delays = [
+            delay
+            for delay in (
+                self.get_manual_rain_delay(),
+                self.get_weather_rain_delay(),
+            )
+            if delay is not None
+        ]
+        return max(delays, default=None)
+
+    def clear_expired_rain_delays(self, now: datetime) -> None:
+        now_utc = _as_utc(now)
+        if (manual := self.get_manual_rain_delay()) is not None and manual <= now_utc:
+            self.set_manual_rain_delay(None)
+        if (
+            weather := self.get_weather_rain_delay()
+        ) is not None and weather <= now_utc:
+            self.set_weather_rain_delay(None)
+
+    def _datetime_controller_state(self, key: str) -> datetime | None:
+        value = self.get_controller_state(key)
+        return datetime.fromisoformat(value) if value is not None else None
 
     def start_run(
         self,

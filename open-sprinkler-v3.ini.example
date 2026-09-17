@@ -22,3 +22,8 @@ timezone = America/Los_Angeles
 poll_seconds = 15
 # Run a schedule only within five minutes of its configured start time.
 grace_seconds = 300
+
+[Weather]
+# Weather location and thresholds are configured from the web Settings dialog.
+# Avoid excessive requests to the no-key Open-Meteo service.
+poll_seconds = 900

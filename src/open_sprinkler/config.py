@@ -21,6 +21,7 @@ class RuntimeSettings:
     timezone: str
     scheduler_poll_seconds: int
     scheduler_grace_seconds: int
+    weather_poll_seconds: int
 
 
 def load_settings(path: Path) -> RuntimeSettings:
@@ -62,11 +63,14 @@ def load_settings(path: Path) -> RuntimeSettings:
         scheduler_grace_seconds=parser.getint(
             "Scheduler", "grace_seconds", fallback=300
         ),
+        weather_poll_seconds=parser.getint("Weather", "poll_seconds", fallback=900),
     )
     if settings.scheduler_poll_seconds < 1:
         raise ValueError("Scheduler poll interval must be positive")
     if settings.scheduler_grace_seconds < 0:
         raise ValueError("Scheduler grace period must not be negative")
+    if settings.weather_poll_seconds < 60:
+        raise ValueError("Weather poll interval must be at least 60 seconds")
     return settings
 
 

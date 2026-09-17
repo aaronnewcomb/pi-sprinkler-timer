@@ -10,7 +10,8 @@ the `develop/v3` branch and must not replace a working 2.0 controller yet.
 The first three 3.0 milestones add a single-owner relay controller, a versioned
 REST API, automatic shutoff, transactional SQLite schedules, rain delays, run
 history, a starter Home Assistant configuration, and a responsive web
-dashboard. API clients use bearer authentication. Browsers exchange that token
+dashboard. Optional Open-Meteo automation can pause schedules around configured
+precipitation while keeping manual holds independent. API clients use bearer authentication. Browsers exchange that token
 for a signed session with CSRF protection. See
 [the 3.0 architecture and phased roadmap](docs/V3_ARCHITECTURE.md).
 
@@ -33,6 +34,12 @@ together. A separate Raspberry Pi can now follow the
 [3.0 test installation and acceptance procedure](docs/V3_INSTALLATION.md).
 Keep the production 2.0 controller untouched until that hardware acceptance is
 complete.
+
+Weather automation requires outbound HTTPS and DNS access to
+`api.open-meteo.com` and `geocoding-api.open-meteo.com`. It does not require an
+API key for the project's non-commercial use. Location and threshold settings
+are stored in the controller database and can be changed from the web Settings
+dialog.
 
 (If you are looking for a more turnkey and feature rich solution for your RPi, I highly recommend [OpenSprinkler Pi](https://opensprinkler.com/product/opensprinkler-pi/) instead.)
 

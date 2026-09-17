@@ -64,6 +64,16 @@ class PersistenceTests(unittest.TestCase):
         self.repository.set_rain_delay(None)
         self.assertIsNone(self.repository.get_rain_delay())
 
+    def test_expired_manual_hold_does_not_clear_weather_hold(self):
+        self.repository.set_manual_rain_delay(self.now - timedelta(hours=1))
+        weather_until = self.now + timedelta(hours=8)
+        self.repository.set_weather_rain_delay(weather_until)
+
+        self.repository.clear_expired_rain_delays(self.now)
+
+        self.assertIsNone(self.repository.get_manual_rain_delay())
+        self.assertEqual(self.repository.get_weather_rain_delay(), weather_until)
+
     def test_open_runs_are_marked_interrupted_after_restart(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "controller.db"

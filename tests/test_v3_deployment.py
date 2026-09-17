@@ -61,12 +61,16 @@ class DeploymentTests(unittest.TestCase):
 
         self.assertIn("Pi Sprinkler Timer", page)
         self.assertIn('id="settings-dialog"', page)
-        self.assertIn("does not use weather data", page)
+        self.assertIn("Weather automation manages a separate automatic hold", page)
         self.assertIn(
             'id="stop-all-button" class="button danger" type="button" hidden', page
         )
         self.assertIn("elements.stopAllButton.hidden = !active", script)
         self.assertIn("Controller online", script)
+        self.assertIn("data-countdown-until", script)
+        self.assertIn('id="custom-delay-hours"', page)
+        self.assertIn('id="weather-form"', page)
+        self.assertIn("Manual and weather holds", script)
 
     def test_installation_guide_has_complete_tls_paths(self):
         guide = (ROOT / "docs" / "V3_INSTALLATION.md").read_text(encoding="utf-8")
@@ -78,3 +82,5 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn("98-open-sprinkler-tls.conf", guide)
         self.assertIn("rootCA.pem", guide)
         self.assertIn("Never copy or share `rootCA-key.pem`", guide)
+        self.assertIn("api.open-meteo.com", guide)
+        self.assertIn("live\ncountdown", guide)

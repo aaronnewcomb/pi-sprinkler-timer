@@ -66,6 +66,11 @@ The current development branch implements:
 - `GET|POST /api/v1/schedules`, list and create schedules;
 - `PUT|DELETE /api/v1/schedules/{id}`, replace or remove a schedule;
 - `GET|PUT|DELETE /api/v1/rain-delay`, inspect, set, or clear a delay;
+- `GET /api/v1/weather`, inspect current conditions, forecast, settings, and
+  automatic hold state;
+- `PUT /api/v1/weather/settings`, enable or disable weather automation and set
+  its location, precipitation threshold, and recovery period;
+- `POST /api/v1/weather/refresh`, request an immediate provider refresh;
 - `GET /api/v1/history`, retrieve bounded station-run history.
 
 Control and status endpoints require either an `Authorization: Bearer` header
@@ -109,11 +114,21 @@ and limited to one run per local date. A bounded grace window avoids starting a
 morning program hours late after a long outage. Any unfinished station run is
 marked `interrupted` when the application initializes after a restart.
 
-The current rain delay is a manual schedule hold. While active, it prevents new
-scheduled programs from starting and clears itself after its expiration time.
-It does not read weather data, interrupt a station that is already running, or
-block manual and API station starts. A future weather adapter can set the same
-hold through the versioned API without adding a second GPIO control path.
+Manual and automatic weather holds are persisted independently. The scheduler
+uses the later expiration as the effective hold, while the API reports both
+sources. Clearing a manual hold cannot erase an active weather hold, and
+disabling weather automation cannot erase a manual hold. Neither hold
+interrupts a station that is already running or blocks manual and API station
+starts.
+
+The optional Open-Meteo adapter resolves a ZIP or postal code to coordinates,
+or accepts coordinates directly. Every 15 minutes it evaluates accumulated
+precipitation across the preceding 24 hours and forecast 24 hours. When the
+configured threshold is met, the automatic hold lasts until the final wet hour
+in that window plus the configured recovery period. Provider failures retain
+the most recent unexpired hold and never issue GPIO commands. The same service
+provides current conditions and a four-day forecast to the web navigation and
+Settings dialog.
 
 GPIO pin assignment stays in the root-managed configuration because changing
 it is a deployment operation, not routine sprinkler scheduling.

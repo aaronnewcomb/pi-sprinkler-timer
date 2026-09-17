@@ -32,6 +32,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(settings.timezone, "UTC")
         self.assertEqual(settings.scheduler_poll_seconds, 15)
         self.assertEqual(settings.scheduler_grace_seconds, 300)
+        self.assertEqual(settings.weather_poll_seconds, 900)
         self.assertEqual(
             settings.database_path,
             Path("/var/lib/open-sprinkler/open-sprinkler.db"),

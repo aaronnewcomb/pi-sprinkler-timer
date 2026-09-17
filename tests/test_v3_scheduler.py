@@ -98,6 +98,23 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(triggered, [])
         self.assertEqual(controller.calls, [])
 
+    def test_weather_delay_suppresses_new_schedule_runs(self):
+        self.create_schedule()
+        self.repository.set_weather_rain_delay(
+            self.local_tuesday_0601 + timedelta(hours=2)
+        )
+        controller = FakeController()
+        runner = ScheduleRunner(
+            self.repository,
+            controller,
+            timezone="America/Los_Angeles",
+        )
+
+        triggered = asyncio.run(runner.run_once(now=self.local_tuesday_0601))
+
+        self.assertEqual(triggered, [])
+        self.assertEqual(controller.calls, [])
+
     def test_interrupted_step_aborts_remaining_schedule(self):
         schedule = self.create_schedule()
         controller = FakeController(["stopped"])

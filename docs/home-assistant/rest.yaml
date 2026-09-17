@@ -17,6 +17,32 @@ rest:
           - active_run_id
           - active_until
 
+  - resource: https://OPEN_SPRINKLER_HOST/api/v1/weather
+    scan_interval: 300
+    timeout: 10
+    headers:
+      Authorization: !secret open_sprinkler_authorization
+    sensor:
+      - name: Pi Sprinkler Timer weather
+        unique_id: pi_sprinkler_timer_weather
+        value_template: >-
+          {% if value_json.available %}
+            {{ value_json.temperature_f | round(0) }} °F
+          {% elif value_json.settings.enabled %}
+            unavailable
+          {% else %}
+            disabled
+          {% endif %}
+        json_attributes:
+          - settings
+          - weather_code
+          - precipitation_inches
+          - daily
+          - evaluated_precipitation_inches
+          - automatic_hold_until
+          - last_checked_at
+          - error
+
 rest_command:
   open_sprinkler_start_station:
     url: "https://OPEN_SPRINKLER_HOST/api/v1/stations/{{ station_id }}/start"

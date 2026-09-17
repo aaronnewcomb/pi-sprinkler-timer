@@ -78,6 +78,11 @@ sudoedit /etc/open-sprinkler/open-sprinkler.ini
 Keep the server bound to `127.0.0.1`. Verify the BCM GPIO numbers, station
 names, `America/Los_Angeles` timezone, and database path.
 
+The `[Weather]` polling interval defaults to 900 seconds. Location,
+precipitation threshold, and post-precipitation delay are stored in SQLite and
+configured later from the browser, so they do not belong in this root-managed
+file.
+
 Create the API token through a masked prompt. Use a password manager to provide
 at least 32 characters, and do not paste the value into chat, shell arguments,
 or the repository:
@@ -231,8 +236,19 @@ The API must listen only on `127.0.0.1:8000`, and the lighttpd request must
 return the Pi Sprinkler Timer page. Open the controller from another computer at
 `http://CONTROLLER-IP/` for Option A or `https://CONTROLLER-IP/` for Option B.
 Sign in and confirm every station reports off. Test each relay individually,
-switch directly between stations, set and clear a rain delay, create a short
+switch directly between stations, confirm the active station displays a live
+countdown, set and clear both preset and custom rain delays, create a short
 schedule, and confirm its run appears in history.
+
+If weather automation will be used, open **Settings**, enable it, and provide a
+ZIP or postal code or latitude and longitude. Set the precipitation threshold
+in inches and the number of hours to hold schedules after the last expected
+precipitation. Confirm the navigation shows current conditions and future rain
+probability, then confirm a qualifying forecast appears as a weather hold in
+the controller-status box. The Pi must be able to resolve and reach
+`api.open-meteo.com` and `geocoding-api.open-meteo.com` over HTTPS. No provider
+credential is stored by Pi Sprinkler Timer. Weather data is provided by
+[Open-Meteo](https://open-meteo.com/).
 
 For Option B, the health endpoint must now succeed:
 

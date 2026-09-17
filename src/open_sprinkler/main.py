@@ -13,6 +13,7 @@ from .controller import SprinklerController
 from .persistence import SQLiteRepository
 from .relay import GPIOZeroRelayBank
 from .scheduler import ScheduleRunner
+from .weather import WeatherAutomation
 
 
 def main() -> None:
@@ -50,11 +51,16 @@ def main() -> None:
         poll_seconds=settings.scheduler_poll_seconds,
         grace_seconds=settings.scheduler_grace_seconds,
     )
+    weather = WeatherAutomation(
+        repository,
+        poll_seconds=settings.weather_poll_seconds,
+    )
     app = create_app(
         controller,
         api_token,
         repository=repository,
         scheduler=scheduler,
+        weather=weather,
         secure_cookies=settings.secure_cookies,
     )
 

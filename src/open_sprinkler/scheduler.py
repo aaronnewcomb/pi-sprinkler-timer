@@ -59,11 +59,10 @@ class ScheduleRunner:
 
     async def run_once(self, *, now: datetime | None = None) -> list[int]:
         now_utc = _as_utc(now or datetime.now(UTC))
+        self._repository.clear_expired_rain_delays(now_utc)
         delay_until = self._repository.get_rain_delay()
-        if delay_until is not None:
-            if now_utc < delay_until:
-                return []
-            self._repository.set_rain_delay(None)
+        if delay_until is not None and now_utc < delay_until:
+            return []
 
         local_now = now_utc.astimezone(self._timezone)
         triggered: list[int] = []

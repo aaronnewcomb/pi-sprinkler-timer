@@ -33,6 +33,12 @@ from .persistence import (
     SQLiteRepository,
 )
 from .scheduler import ScheduleRunner
+from .weather import (
+    WeatherAutomation,
+    WeatherProviderError,
+    WeatherSettings,
+    WeatherStatus,
+)
 
 WEB_ROOT = Path(__file__).with_name("web")
 SESSION_COOKIE = "open_sprinkler_session"
@@ -91,6 +97,51 @@ class RainDelayRequest(BaseModel):
 class RainDelayResponse(BaseModel):
     until: datetime | None
     active: bool
+    manual_until: datetime | None
+    weather_until: datetime | None
+    sources: list[str]
+
+
+class WeatherSettingsRequest(BaseModel):
+    enabled: bool
+    postal_code: str = Field(default="", max_length=100)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    precipitation_threshold_inches: float = Field(default=0.25, ge=0.01, le=10)
+    delay_hours_after_precipitation: int = Field(default=24, ge=1, le=336)
+
+
+class WeatherSettingsResponse(BaseModel):
+    enabled: bool
+    postal_code: str
+    latitude: float | None
+    longitude: float | None
+    location_name: str
+    precipitation_threshold_inches: float
+    delay_hours_after_precipitation: int
+
+
+class DailyWeatherResponse(BaseModel):
+    date: str
+    weather_code: int
+    temperature_max_f: float
+    temperature_min_f: float
+    precipitation_inches: float
+    precipitation_probability: int
+
+
+class WeatherResponse(BaseModel):
+    settings: WeatherSettingsResponse
+    available: bool
+    observed_at: datetime | None
+    temperature_f: float | None
+    weather_code: int | None
+    precipitation_inches: float | None
+    daily: list[DailyWeatherResponse]
+    evaluated_precipitation_inches: float | None
+    automatic_hold_until: datetime | None
+    last_checked_at: datetime | None
+    error: str | None
 
 
 class RunRecordResponse(BaseModel):
@@ -119,6 +170,7 @@ def create_app(
     *,
     repository: SQLiteRepository | None = None,
     scheduler: ScheduleRunner | None = None,
+    weather: WeatherAutomation | None = None,
     secure_cookies: bool = True,
 ) -> FastAPI:
     """Create an API app around one controller instance."""
@@ -132,6 +184,8 @@ def create_app(
             if repository is not None:
                 repository.initialize()
             await controller.start()
+            if weather is not None:
+                await weather.start()
             if scheduler is not None:
                 await scheduler.start()
             yield
@@ -139,6 +193,8 @@ def create_app(
             try:
                 if scheduler is not None:
                     await scheduler.close()
+                if weather is not None:
+                    await weather.close()
                 await controller.close()
             finally:
                 if repository is not None:
@@ -379,11 +435,7 @@ def create_app(
     )
     async def get_rain_delay() -> RainDelayResponse:
         persistence = _require_repository(repository)
-        until = persistence.get_rain_delay()
-        return RainDelayResponse(
-            until=until,
-            active=until is not None and datetime.now(UTC) < until,
-        )
+        return _rain_delay_response(persistence)
 
     @app.put(
         "/api/v1/rain-delay",
@@ -402,7 +454,7 @@ def create_app(
                 status_code=422, detail="Rain delay time must be in the future"
             )
         persistence.set_rain_delay(until)
-        return RainDelayResponse(until=until, active=True)
+        return _rain_delay_response(persistence)
 
     @app.delete(
         "/api/v1/rain-delay",
@@ -410,8 +462,54 @@ def create_app(
         dependencies=protected,
     )
     async def clear_rain_delay() -> Response:
-        _require_repository(repository).set_rain_delay(None)
+        _require_repository(repository).set_manual_rain_delay(None)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @app.get(
+        "/api/v1/weather",
+        response_model=WeatherResponse,
+        dependencies=protected,
+    )
+    async def get_weather() -> WeatherResponse:
+        return _weather_response(_require_weather(weather).status())
+
+    @app.put(
+        "/api/v1/weather/settings",
+        response_model=WeatherResponse,
+        dependencies=protected,
+    )
+    async def update_weather_settings(
+        request: WeatherSettingsRequest,
+    ) -> WeatherResponse:
+        service = _require_weather(weather)
+        try:
+            weather_status = await service.configure(
+                WeatherSettings(
+                    enabled=request.enabled,
+                    postal_code=request.postal_code,
+                    latitude=request.latitude,
+                    longitude=request.longitude,
+                    precipitation_threshold_inches=(
+                        request.precipitation_threshold_inches
+                    ),
+                    delay_hours_after_precipitation=(
+                        request.delay_hours_after_precipitation
+                    ),
+                )
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except WeatherProviderError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
+        return _weather_response(weather_status)
+
+    @app.post(
+        "/api/v1/weather/refresh",
+        response_model=WeatherResponse,
+        dependencies=protected,
+    )
+    async def refresh_weather() -> WeatherResponse:
+        return _weather_response(await _require_weather(weather).refresh())
 
     @app.get(
         "/api/v1/history",
@@ -457,6 +555,75 @@ def _require_repository(
     if repository is None:
         raise HTTPException(status_code=503, detail="Persistence is not configured")
     return repository
+
+
+def _require_weather(weather: WeatherAutomation | None) -> WeatherAutomation:
+    if weather is None:
+        raise HTTPException(
+            status_code=503, detail="Weather automation is not configured"
+        )
+    return weather
+
+
+def _rain_delay_response(repository: SQLiteRepository) -> RainDelayResponse:
+    now = datetime.now(UTC)
+    repository.clear_expired_rain_delays(now)
+    manual_until = repository.get_manual_rain_delay()
+    weather_until = repository.get_weather_rain_delay()
+    sources = []
+    if manual_until is not None and manual_until > now:
+        sources.append("manual")
+    if weather_until is not None and weather_until > now:
+        sources.append("weather")
+    until = max(
+        (item for item in (manual_until, weather_until) if item is not None),
+        default=None,
+    )
+    return RainDelayResponse(
+        until=until,
+        active=bool(sources),
+        manual_until=manual_until,
+        weather_until=weather_until,
+        sources=sources,
+    )
+
+
+def _weather_response(weather_status: WeatherStatus) -> WeatherResponse:
+    settings = weather_status.settings
+    snapshot = weather_status.snapshot
+    return WeatherResponse(
+        settings=WeatherSettingsResponse(
+            enabled=settings.enabled,
+            postal_code=settings.postal_code,
+            latitude=settings.latitude,
+            longitude=settings.longitude,
+            location_name=settings.location_name,
+            precipitation_threshold_inches=(settings.precipitation_threshold_inches),
+            delay_hours_after_precipitation=(settings.delay_hours_after_precipitation),
+        ),
+        available=snapshot is not None,
+        observed_at=snapshot.observed_at if snapshot is not None else None,
+        temperature_f=snapshot.temperature_f if snapshot is not None else None,
+        weather_code=snapshot.weather_code if snapshot is not None else None,
+        precipitation_inches=(
+            snapshot.precipitation_inches if snapshot is not None else None
+        ),
+        daily=[
+            DailyWeatherResponse(
+                date=item.day.isoformat(),
+                weather_code=item.weather_code,
+                temperature_max_f=item.temperature_max_f,
+                temperature_min_f=item.temperature_min_f,
+                precipitation_inches=item.precipitation_inches,
+                precipitation_probability=item.precipitation_probability,
+            )
+            for item in (snapshot.daily if snapshot is not None else ())
+        ],
+        evaluated_precipitation_inches=(weather_status.evaluated_precipitation_inches),
+        automatic_hold_until=weather_status.automatic_hold_until,
+        last_checked_at=weather_status.last_checked_at,
+        error=weather_status.error,
+    )
 
 
 def _validate_schedule_request(

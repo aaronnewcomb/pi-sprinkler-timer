@@ -4,8 +4,10 @@ const state = {
   status: null,
   schedules: [],
   rainDelay: null,
+  weather: null,
   history: [],
   refreshTimer: null,
+  countdownTimer: null,
 };
 
 const elements = {
@@ -14,9 +16,11 @@ const elements = {
   loginError: document.querySelector("#login-error"),
   tokenInput: document.querySelector("#token-input"),
   connectionBadge: document.querySelector("#connection-badge"),
+  weatherButton: document.querySelector("#weather-button"),
   stopAllButton: document.querySelector("#stop-all-button"),
   controllerTitle: document.querySelector("#controller-title"),
   controllerDetail: document.querySelector("#controller-detail"),
+  holdStatus: document.querySelector("#hold-status"),
   stationsGrid: document.querySelector("#stations-grid"),
   activeStationMetric: document.querySelector("#active-station-metric"),
   activeUntilMetric: document.querySelector("#active-until-metric"),
@@ -26,6 +30,14 @@ const elements = {
   settingsDialog: document.querySelector("#settings-dialog"),
   settingsDelayBadge: document.querySelector("#settings-delay-badge"),
   settingsDelayDetail: document.querySelector("#settings-delay-detail"),
+  clearDelayButton: document.querySelector("#clear-delay-button"),
+  customDelayHours: document.querySelector("#custom-delay-hours"),
+  weatherForm: document.querySelector("#weather-form"),
+  weatherFormError: document.querySelector("#weather-form-error"),
+  weatherSettingsBadge: document.querySelector("#weather-settings-badge"),
+  weatherCurrent: document.querySelector("#weather-current"),
+  weatherForecast: document.querySelector("#weather-forecast"),
+  weatherControllerStatus: document.querySelector("#weather-controller-status"),
   scheduleList: document.querySelector("#schedule-list"),
   historyList: document.querySelector("#history-list"),
   scheduleDialog: document.querySelector("#schedule-dialog"),
@@ -76,6 +88,7 @@ async function api(path, options = {}) {
 
 function showLogin() {
   clearInterval(state.refreshTimer);
+  clearInterval(state.countdownTimer);
   if (!elements.loginDialog.open) elements.loginDialog.showModal();
   window.setTimeout(() => elements.tokenInput.focus(), 50);
 }
@@ -107,6 +120,22 @@ function formatDateTime(value) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function formatCountdown(value) {
+  const remaining = Math.max(0, Math.ceil((new Date(value).getTime() - Date.now()) / 1000));
+  const hours = Math.floor(remaining / 3600);
+  const minutes = Math.floor((remaining % 3600) / 60);
+  const seconds = remaining % 60;
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+    : `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function updateCountdowns() {
+  document.querySelectorAll("[data-countdown-until]").forEach((input) => {
+    input.value = formatCountdown(input.dataset.countdownUntil);
+  });
 }
 
 function stationName(stationId) {
@@ -148,12 +177,21 @@ function renderStations() {
     const controls = element("div", "station-controls");
     const duration = element("label", "duration-field");
     const input = document.createElement("input");
-    input.type = "number";
-    input.min = "1";
-    input.max = "120";
-    input.value = "10";
-    input.setAttribute("aria-label", `${station.name} duration in minutes`);
-    duration.append(input, element("span", "", "minutes"));
+    if (station.active && state.status.active_until) {
+      input.type = "text";
+      input.readOnly = true;
+      input.dataset.countdownUntil = state.status.active_until;
+      input.value = formatCountdown(state.status.active_until);
+      input.setAttribute("aria-label", `${station.name} remaining watering time`);
+      duration.append(input, element("span", "", "remaining"));
+    } else {
+      input.type = "number";
+      input.min = "1";
+      input.max = "120";
+      input.value = "10";
+      input.setAttribute("aria-label", `${station.name} duration in minutes`);
+      duration.append(input, element("span", "", "minutes"));
+    }
     const action = element("button", `button ${station.active ? "danger" : "primary"}`, station.active ? "Stop" : "Start");
     action.type = "button";
     action.addEventListener("click", async () => {
@@ -187,15 +225,85 @@ function renderStations() {
 
 function renderRainDelay() {
   const active = state.rainDelay?.active;
+  const sources = state.rainDelay?.sources || [];
+  const sourceName = sources.length > 1
+    ? "Manual and weather holds"
+    : sources[0] === "weather" ? "Weather hold" : "Manual hold";
   const detail = active
-    ? `Schedules resume ${formatDateTime(state.rainDelay.until)}.`
+    ? `${sourceName} until ${formatDateTime(state.rainDelay.until)}.`
     : "Scheduled programs may run.";
   elements.delayBadge.textContent = active ? "Schedules paused" : "Schedules active";
   elements.delayBadge.className = `status-pill ${active ? "watering" : "online"}`;
   elements.delayDetail.textContent = detail;
   elements.settingsDelayBadge.textContent = active ? "Rain delay on" : "No delay";
   elements.settingsDelayBadge.className = `status-pill ${active ? "watering" : "online"}`;
-  elements.settingsDelayDetail.textContent = detail;
+  const settingsDetails = [];
+  if (state.rainDelay?.manual_until) settingsDetails.push(`Manual until ${formatDateTime(state.rainDelay.manual_until)}.`);
+  if (state.rainDelay?.weather_until) settingsDetails.push(`Weather until ${formatDateTime(state.rainDelay.weather_until)}.`);
+  elements.settingsDelayDetail.textContent = settingsDetails.join(" ") || detail;
+  elements.clearDelayButton.disabled = !state.rainDelay?.manual_until;
+  elements.holdStatus.hidden = !active;
+  elements.holdStatus.textContent = active ? detail : "";
+}
+
+function weatherDescription(code) {
+  if (code === 0) return "Clear";
+  if ([1, 2].includes(code)) return "Partly cloudy";
+  if (code === 3) return "Overcast";
+  if ([45, 48].includes(code)) return "Fog";
+  if ([51, 53, 55, 56, 57].includes(code)) return "Drizzle";
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return "Rain";
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return "Snow";
+  if ([95, 96, 99].includes(code)) return "Storms";
+  return "Weather";
+}
+
+function weatherIcon(code) {
+  if (code === 0) return "☀";
+  if ([1, 2].includes(code)) return "⛅";
+  if ([3, 45, 48].includes(code)) return "☁";
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return "❄";
+  if ([95, 96, 99].includes(code)) return "⛈";
+  return "☂";
+}
+
+function renderWeather() {
+  const weather = state.weather;
+  if (!weather) return;
+  const enabled = weather.settings.enabled;
+  elements.weatherSettingsBadge.textContent = enabled ? (weather.available ? "Active" : "Unavailable") : "Off";
+  elements.weatherSettingsBadge.className = `status-pill ${enabled && weather.available ? "online" : "neutral"}`;
+  elements.weatherControllerStatus.textContent = enabled ? (weather.available ? "Active" : "Unavailable") : "Not configured";
+  elements.weatherForecast.replaceChildren();
+
+  if (!enabled) {
+    elements.weatherButton.textContent = "Weather off";
+    elements.weatherCurrent.textContent = "Weather automation is off.";
+    return;
+  }
+  if (!weather.available) {
+    elements.weatherButton.textContent = "Weather unavailable";
+    elements.weatherCurrent.textContent = weather.error || "Waiting for the first weather update.";
+    return;
+  }
+
+  const today = weather.daily[0];
+  const future = weather.daily[1] || today;
+  const futureDay = new Intl.DateTimeFormat([], { weekday: "short" }).format(new Date(`${future.date}T12:00:00`));
+  elements.weatherButton.textContent = `${weatherIcon(weather.weather_code)} ${Math.round(weather.temperature_f)}° · ${futureDay} ${future.precipitation_probability}%`;
+  elements.weatherButton.title = `${weatherDescription(weather.weather_code)} now. ${future.precipitation_probability}% precipitation chance ${futureDay}.`;
+  elements.weatherCurrent.textContent = `${weather.settings.location_name}: ${Math.round(weather.temperature_f)}°F and ${weatherDescription(weather.weather_code).toLowerCase()}. Evaluated precipitation: ${(weather.evaluated_precipitation_inches || 0).toFixed(2)} in.`;
+  for (const day of weather.daily.slice(0, 4)) {
+    const card = element("article", "forecast-card");
+    const dayName = new Intl.DateTimeFormat([], { weekday: "short" }).format(new Date(`${day.date}T12:00:00`));
+    card.append(
+      element("strong", "", dayName),
+      element("span", "forecast-icon", weatherIcon(day.weather_code)),
+      element("span", "", `${Math.round(day.temperature_max_f)}° / ${Math.round(day.temperature_min_f)}°`),
+      element("small", "muted", `${day.precipitation_probability}% · ${day.precipitation_inches.toFixed(2)} in`),
+    );
+    elements.weatherForecast.append(card);
+  }
 }
 
 function daySummary(days) {
@@ -304,6 +412,20 @@ async function refreshRainDelay() {
   renderRainDelay();
 }
 
+async function refreshWeather() {
+  try {
+    state.weather = await api("/api/v1/weather");
+    renderWeather();
+  } catch (error) {
+    if (error.message === "Weather automation is not configured") {
+      state.weather = null;
+      elements.weatherButton.textContent = "Weather unavailable";
+      return;
+    }
+    throw error;
+  }
+}
+
 async function refreshHistory() {
   state.history = await api("/api/v1/history?limit=20");
   renderHistory();
@@ -312,10 +434,14 @@ async function refreshHistory() {
 async function refreshAll() {
   try {
     await refreshStatus();
-    await Promise.all([refreshSchedules(), refreshRainDelay(), refreshHistory()]);
+    await Promise.all([refreshSchedules(), refreshRainDelay(), refreshWeather(), refreshHistory()]);
     renderScheduleStationOptions();
     clearInterval(state.refreshTimer);
-    state.refreshTimer = window.setInterval(() => refreshStatus().catch(() => setConnected(false)), 5000);
+    clearInterval(state.countdownTimer);
+    state.refreshTimer = window.setInterval(() => {
+      Promise.all([refreshStatus(), refreshRainDelay(), refreshWeather()]).catch(() => setConnected(false));
+    }, 5000);
+    state.countdownTimer = window.setInterval(updateCountdowns, 1000);
   } catch (error) {
     setConnected(false);
     if (error.message !== "Authentication required") notify(error.message, true);
@@ -364,30 +490,97 @@ document.querySelector("#logout-button").addEventListener("click", async () => {
   showLogin();
 });
 
-function showSettings() {
-  if (!elements.settingsDialog.open) elements.settingsDialog.showModal();
+function populateWeatherForm() {
+  const settings = state.weather?.settings;
+  if (!settings) return;
+  document.querySelector("#weather-enabled").checked = settings.enabled;
+  document.querySelector("#weather-postal-code").value = settings.postal_code || "";
+  document.querySelector("#weather-latitude").value = settings.latitude ?? "";
+  document.querySelector("#weather-longitude").value = settings.longitude ?? "";
+  document.querySelector("#weather-threshold").value = settings.precipitation_threshold_inches;
+  document.querySelector("#weather-delay-hours").value = settings.delay_hours_after_precipitation;
 }
 
-document.querySelector("#settings-button").addEventListener("click", showSettings);
-document.querySelector("#manage-delay-button").addEventListener("click", showSettings);
+function showSettings(section = null) {
+  populateWeatherForm();
+  if (!elements.settingsDialog.open) elements.settingsDialog.showModal();
+  if (section) window.setTimeout(() => section.scrollIntoView({ block: "start" }), 20);
+}
+
+document.querySelector("#settings-button").addEventListener("click", () => showSettings());
+document.querySelector("#manage-delay-button").addEventListener("click", () => showSettings());
+elements.weatherButton.addEventListener("click", () => showSettings(document.querySelector("#weather-settings-section")));
 document.querySelector("#close-settings-button").addEventListener("click", () => elements.settingsDialog.close());
+
+async function setManualDelay(hours) {
+  const until = new Date(Date.now() + hours * 60 * 60 * 1000);
+  await api("/api/v1/rain-delay", { method: "PUT", body: JSON.stringify({ until: until.toISOString() }) });
+  await refreshRainDelay();
+}
 
 document.querySelectorAll(".delay-button").forEach((button) => {
   button.addEventListener("click", async () => {
-    const until = new Date(Date.now() + Number(button.dataset.hours) * 60 * 60 * 1000);
     try {
-      await api("/api/v1/rain-delay", { method: "PUT", body: JSON.stringify({ until: until.toISOString() }) });
-      await refreshRainDelay();
+      await setManualDelay(Number(button.dataset.hours));
       notify(`Rain delay set for ${button.dataset.hours} hours`);
     } catch (error) { notify(error.message, true); }
   });
+});
+
+document.querySelector("#set-custom-delay-button").addEventListener("click", async () => {
+  const hours = Number(elements.customDelayHours.value);
+  if (!Number.isFinite(hours) || hours < 1 || hours > 336) {
+    notify("Choose a custom delay from 1 to 336 hours", true);
+    return;
+  }
+  try {
+    await setManualDelay(hours);
+    notify(`Rain delay set for ${hours} hours`);
+  } catch (error) { notify(error.message, true); }
 });
 
 document.querySelector("#clear-delay-button").addEventListener("click", async () => {
   try {
     await api("/api/v1/rain-delay", { method: "DELETE" });
     await refreshRainDelay();
-    notify("Rain delay cleared");
+    notify("Manual hold cleared");
+  } catch (error) { notify(error.message, true); }
+});
+
+elements.weatherForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  elements.weatherFormError.textContent = "";
+  const valueOrNull = (selector) => {
+    const value = document.querySelector(selector).value.trim();
+    return value === "" ? null : Number(value);
+  };
+  try {
+    state.weather = await api("/api/v1/weather/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        enabled: document.querySelector("#weather-enabled").checked,
+        postal_code: document.querySelector("#weather-postal-code").value.trim(),
+        latitude: valueOrNull("#weather-latitude"),
+        longitude: valueOrNull("#weather-longitude"),
+        precipitation_threshold_inches: Number(document.querySelector("#weather-threshold").value),
+        delay_hours_after_precipitation: Number(document.querySelector("#weather-delay-hours").value),
+      }),
+    });
+    renderWeather();
+    populateWeatherForm();
+    await refreshRainDelay();
+    notify("Weather settings saved");
+  } catch (error) {
+    elements.weatherFormError.textContent = error.message;
+  }
+});
+
+document.querySelector("#refresh-weather-button").addEventListener("click", async () => {
+  try {
+    state.weather = await api("/api/v1/weather/refresh", { method: "POST" });
+    renderWeather();
+    await refreshRainDelay();
+    notify(state.weather.error ? state.weather.error : "Weather updated", Boolean(state.weather.error));
   } catch (error) { notify(error.message, true); }
 });
 
