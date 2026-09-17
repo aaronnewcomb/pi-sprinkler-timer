@@ -28,6 +28,8 @@ class DeploymentTests(unittest.TestCase):
 
         self.assertIn('"host" => "127.0.0.1"', proxy)
         self.assertIn('"port" => 8000', proxy)
+        self.assertIn('"/" => (', proxy)
+        self.assertNotIn('"" => (', proxy)
         self.assertNotIn("0.0.0.0", proxy)
 
     def test_tls_example_redirects_plain_http(self):

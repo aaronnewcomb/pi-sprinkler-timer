@@ -224,12 +224,15 @@ sudo systemctl start open-sprinkler-v3.service
 systemctl status open-sprinkler-v3.service --no-pager -l
 journalctl -u open-sprinkler-v3.service -n 80 --no-pager
 sudo ss -ltnp | grep ':8000'
+curl --fail --show-error http://127.0.0.1/
 ```
 
-The API must listen only on `127.0.0.1:8000`. Open the controller through
-lighttpd, sign in, and confirm every station reports off. Test each relay
-individually, switch directly between stations, set and clear a rain delay,
-create a short schedule, and confirm its run appears in history.
+The API must listen only on `127.0.0.1:8000`, and the lighttpd request must
+return the Open Sprinkler page. Open the controller from another computer at
+`http://CONTROLLER-IP/` for Option A or `https://CONTROLLER-IP/` for Option B.
+Sign in and confirm every station reports off. Test each relay individually,
+switch directly between stations, set and clear a rain delay, create a short
+schedule, and confirm its run appears in history.
 
 For Option B, the health endpoint must now succeed:
 
