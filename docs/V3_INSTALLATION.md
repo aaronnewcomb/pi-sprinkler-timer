@@ -10,11 +10,12 @@ hostname, user, network, timezone, and SSH access in Imager before first boot.
 
 ## Automated installation
 
-The checked-in installer automates system packages, the isolated Python
-environment, restricted service account, configuration, API-token prompt,
-systemd unit, lighttpd proxy, optional private-LAN TLS, tests, and validation.
-It defaults to the tested `v3-ui-checkpoint-2026-09-17` tag. It preserves an
-existing configuration, database, certificate pair, and valid API token.
+The checked-in installer presents and explains eight stages: platform and
+relay safety checks, operating-system packages, application installation,
+automated tests, service account and credentials, the systemd unit, web
+transport, and final activation. It defaults to the tested
+`v3-ui-checkpoint-2026-09-17` tag and preserves an existing configuration,
+database, certificate pair, and valid API token.
 
 Bootstrap the installer from the development branch on a fresh Pi:
 
@@ -51,20 +52,28 @@ time limit and the token is never printed. If the installer is interrupted at
 this step, rerun the same command. Existing completed work is reused, and an
 empty or incomplete token file is safely replaced by a new prompt.
 
-By default the installer leaves `open-sprinkler-v3.service` stopped and
-disabled. To start it during installation, first disconnect the 24 VAC valve
-transformer, then explicitly confirm that condition:
+By default the installer explains the relay-safety requirement, asks you to
+confirm that the 24 VAC valve transformer is disconnected, then enables and
+starts both lighttpd and `open-sprinkler-v3.service`. It verifies the service
+state and application health endpoint before reporting completion. Keep valve
+power disconnected until relay acceptance passes.
+
+For unattended automation, the physical safety check can be preconfirmed only
+after disconnecting valve power:
 
 ```bash
 sudo ./scripts/install-v3.sh --mode http \
-    --start --valve-power-disconnected
+    --valve-power-disconnected
 ```
+
+Use `--no-start` only when deliberately staging the files while leaving the
+controller service disabled and stopped.
 
 Use `--ref develop/v3` only when deliberately testing development beyond the
 checkpoint. Run `./scripts/install-v3.sh --help` for all options. The detailed
-manual steps below remain the troubleshooting and audit reference. On an
-existing installation, stop `open-sprinkler-v3.service` before rerunning the
-installer; it refuses to modify a live controller.
+manual steps below remain the troubleshooting, audit, and relay-acceptance
+reference. On an existing installation, stop `open-sprinkler-v3.service`
+before rerunning the installer; it refuses to modify a live controller.
 
 ## 1. Inspect the fresh system
 

@@ -24,6 +24,7 @@ class InstallerTests(unittest.TestCase):
         )
         self.assertEqual(help_result.returncode, 0, help_result.stderr)
         self.assertIn("--mode http|https", help_result.stdout)
+        self.assertIn("--no-start", help_result.stdout)
         self.assertIn("--valve-power-disconnected", help_result.stdout)
 
     def test_installer_defaults_to_the_tested_checkpoint(self):
@@ -47,18 +48,43 @@ class InstallerTests(unittest.TestCase):
         self.assertIn("systemd-ask-password --timeout=0", script)
         self.assertIn("rerun the installer to resume", script)
 
-    def test_installer_requires_relay_safety_confirmation_before_start(self):
+    def test_installer_explains_each_installation_stage(self):
         script = INSTALLER.read_text(encoding="utf-8")
+        expected_titles = (
+            "Safety and platform checks",
+            "Operating-system packages",
+            "Application and Python environment",
+            "Automated software tests",
+            "Service account, configuration, and API token",
+            "systemd controller service",
+            "Web proxy and transport security",
+            "Controller activation and health verification",
+        )
+        for number, title in enumerate(expected_titles, start=1):
+            self.assertIn(f'stage {number} 8 "{title}"', script)
+
+    def test_installer_enables_service_after_relay_safety_confirmation(self):
+        script = INSTALLER.read_text(encoding="utf-8")
+        self.assertIn("start_service=true", script)
         self.assertIn(
-            'if [[ "${start_service}" == true && '
-            '"${valve_power_disconnected}" != true ]]',
+            'read -r -p "Type DISCONNECTED to confirm valve power is disconnected: "',
             script,
         )
+        self.assertIn('[[ "${relay_confirmation}" == "DISCONNECTED" ]]', script)
         self.assertIn(
             'if [[ "${start_service}" == true ]]; then\n'
-            '    log "Starting the controller with valve power confirmed disconnected"',
+            '    [[ "${valve_power_disconnected}" == true ]]',
             script,
         )
+        self.assertIn(
+            "systemctl enable --now open-sprinkler-v3.service",
+            script,
+        )
+        self.assertIn(
+            "systemctl disable --now open-sprinkler-v3.service",
+            script,
+        )
+        self.assertNotIn("Next steps:", script)
 
     def test_installer_refuses_to_replace_unknown_paths_or_dirty_source(self):
         script = INSTALLER.read_text(encoding="utf-8")

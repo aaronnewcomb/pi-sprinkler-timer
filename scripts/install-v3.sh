@@ -23,7 +23,7 @@ access_mode=""
 tls_hostname=""
 tls_ip=""
 run_tests=true
-start_service=false
+start_service=true
 valve_power_disconnected=false
 full_upgrade=false
 
@@ -43,19 +43,31 @@ Options:
   --repository URL      Git repository URL.
   --skip-tests          Skip the application test suite.
   --full-upgrade        Run apt full-upgrade before installing packages.
-  --start               Start the controller after validation.
+  --no-start            Install and validate, but leave the controller disabled.
+  --start               Start the controller after validation (the default).
   --valve-power-disconnected
-                        Required with --start as a relay safety confirmation.
+                        Skip the interactive relay-power safety confirmation.
   -h, --help            Show this help.
 
 The installer never overwrites an existing controller configuration or valid
-API token. It does not enable the GPIO service at boot. Complete relay
-acceptance before enabling the service manually.
+API token. By default it confirms valve power is disconnected, then enables
+and starts the web proxy and controller. Use --no-start for a staged install.
 EOF
 }
 
 log() {
     printf '\n==> %s\n' "$*"
+}
+
+stage() {
+    local number="$1"
+    local total="$2"
+    local title="$3"
+    local description="$4"
+    printf '\n============================================================\n'
+    printf 'Stage %s of %s: %s\n' "${number}" "${total}" "${title}"
+    printf '%s\n' "${description}"
+    printf '============================================================\n'
 }
 
 fail() {
@@ -111,6 +123,20 @@ raise SystemExit(0 if len(token) >= 32 else 1)
 PY
 }
 
+wait_for_controller_health() {
+    local attempt
+    for attempt in {1..20}; do
+        if curl --fail --silent --max-time 2 \
+            http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1; then
+            printf 'Controller health check passed.\n'
+            return 0
+        fi
+        sleep 1
+    done
+    journalctl -u open-sprinkler-v3.service -n 40 --no-pager >&2 || true
+    fail "Controller health endpoint did not become ready within 20 seconds"
+}
+
 while (($#)); do
     case "$1" in
         --mode)
@@ -150,6 +176,10 @@ while (($#)); do
             start_service=true
             shift
             ;;
+        --no-start)
+            start_service=false
+            shift
+            ;;
         --valve-power-disconnected)
             valve_power_disconnected=true
             shift
@@ -175,9 +205,9 @@ if [[ "${access_mode}" == "https" ]]; then
     [[ "${tls_hostname}" != -* && "${tls_ip}" != -* ]] || \
         fail "TLS hostname and IP values must not begin with a dash"
 fi
-if [[ "${start_service}" == true && "${valve_power_disconnected}" != true ]]; then
-    fail "--start requires --valve-power-disconnected"
-fi
+
+stage 1 8 "Safety and platform checks" \
+    "Verifying this is a Raspberry Pi and confirming that relay-controlled valve power is safe before controller startup."
 command -v apt-get >/dev/null || fail "This installer requires Raspberry Pi OS or Debian"
 [[ -r /proc/device-tree/model ]] || fail "Raspberry Pi hardware was not detected"
 grep -q "Raspberry Pi" /proc/device-tree/model || fail "Raspberry Pi hardware was not detected"
@@ -185,7 +215,22 @@ if systemctl is-active --quiet open-sprinkler-v3.service; then
     fail "Stop open-sprinkler-v3.service before installing or updating"
 fi
 
-log "Installing operating-system packages"
+if [[ "${start_service}" == true && "${valve_power_disconnected}" != true ]]; then
+    cat <<'EOF'
+The installer will enable and start GPIO control when installation finishes.
+Disconnect the 24 VAC valve transformer now. This prevents an unexpected relay
+state or configuration mistake from opening a valve during initial startup.
+EOF
+    [[ -t 0 ]] || fail \
+        "Interactive safety confirmation requires a terminal; use --valve-power-disconnected only after physically disconnecting valve power"
+    read -r -p "Type DISCONNECTED to confirm valve power is disconnected: " relay_confirmation
+    [[ "${relay_confirmation}" == "DISCONNECTED" ]] || \
+        fail "Valve-power confirmation was not accepted"
+    valve_power_disconnected=true
+fi
+
+stage 2 8 "Operating-system packages" \
+    "Refreshing APT metadata and installing lighttpd, Python, GPIO Zero, lgpio, and the tools required by the selected HTTP or HTTPS mode."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 if [[ "${full_upgrade}" == true ]]; then
@@ -205,7 +250,8 @@ if [[ "${access_mode}" == "https" ]]; then
 fi
 apt-get install -y "${packages[@]}"
 
-log "Installing source ref ${source_ref}"
+stage 3 8 "Application and Python environment" \
+    "Installing source ref ${source_ref} under /opt and building an isolated Python environment while retaining access to the system GPIO libraries."
 install -d -m 0755 -o root -g root "${APPLICATION_ROOT}"
 if [[ -d "${SOURCE_DIRECTORY}/.git" ]]; then
     [[ -z "$(git -C "${SOURCE_DIRECTORY}" status --porcelain)" ]] || \
@@ -236,12 +282,18 @@ if [[ ! -x "${VIRTUAL_ENVIRONMENT}/bin/python3" ]]; then
     python3 -m venv --system-site-packages "${VIRTUAL_ENVIRONMENT}"
 fi
 "${VIRTUAL_ENVIRONMENT}/bin/pip" install "${SOURCE_DIRECTORY}"
+
+stage 4 8 "Automated software tests" \
+    "Running the controller, API, scheduler, GPIO-safety, web, and installer regression tests before any service is started."
 if [[ "${run_tests}" == true ]]; then
     "${VIRTUAL_ENVIRONMENT}/bin/pip" install pytest httpx
     "${VIRTUAL_ENVIRONMENT}/bin/pytest" -q "${SOURCE_DIRECTORY}/tests"
+else
+    printf 'Tests skipped because --skip-tests was supplied.\n'
 fi
 
-log "Creating the restricted service account and configuration"
+stage 5 8 "Service account, configuration, and API token" \
+    "Creating a restricted controller account, preserving existing settings, and collecting the saved browser and Home Assistant credential when needed."
 if ! getent group open-sprinkler >/dev/null; then
     groupadd --system open-sprinkler
 fi
@@ -286,13 +338,15 @@ chown root:open-sprinkler "${TOKEN_FILE}"
 chmod 0640 "${TOKEN_FILE}"
 token_is_valid || fail "API token must contain at least 32 characters: ${TOKEN_FILE}"
 
-log "Installing and validating the systemd service"
+stage 6 8 "systemd controller service" \
+    "Installing and validating the boot-time service definition that runs the controller with restricted permissions and GPIO-group access."
 install -m 0644 "${SOURCE_DIRECTORY}/systemd/open-sprinkler-v3.service" \
     "${SERVICE_FILE}"
 systemctl daemon-reload
 systemd-analyze verify "${SERVICE_FILE}"
 
-log "Configuring lighttpd reverse proxy"
+stage 7 8 "Web proxy and transport security" \
+    "Configuring lighttpd to expose the loopback-only application to the LAN using the selected HTTP or HTTPS mode, then validating the complete web-server configuration."
 install -m 0644 "${SOURCE_DIRECTORY}/lighttpd/99-open-sprinkler-v3.conf" \
     "${PROXY_AVAILABLE}"
 enable_lighttpd_configuration "99-open-sprinkler-v3.conf" "${PROXY_ENABLED}"
@@ -337,24 +391,38 @@ else
 fi
 
 lighttpd -tt -f /etc/lighttpd/lighttpd.conf
+systemctl enable --now lighttpd
 systemctl restart lighttpd
 systemctl --no-pager --full status lighttpd
 
+stage 8 8 "Controller activation and health verification" \
+    "Applying the selected startup policy, checking the systemd state, and verifying the controller's loopback health endpoint."
 if [[ "${start_service}" == true ]]; then
-    log "Starting the controller with valve power confirmed disconnected"
-    systemctl start open-sprinkler-v3.service
+    [[ "${valve_power_disconnected}" == true ]] || \
+        fail "Internal safety check failed: valve power was not confirmed disconnected"
+    log "Enabling and starting the controller with valve power confirmed disconnected"
+    systemctl enable --now open-sprinkler-v3.service
     systemctl --no-pager --full status open-sprinkler-v3.service
-    curl --fail --show-error --max-time 5 http://127.0.0.1:8000/api/v1/health
+    wait_for_controller_health
 else
-    log "Installation complete; the GPIO service remains stopped and disabled"
+    systemctl disable --now open-sprinkler-v3.service
+    log "The --no-start option left the GPIO service stopped and disabled"
 fi
 
-printf '\nNext steps:\n'
-printf '  1. Review %s and verify every BCM GPIO pin.\n' "${CONFIGURATION_FILE}"
+printf '\nInstallation complete.\n'
+printf '  Controller configuration: %s\n' "${CONFIGURATION_FILE}"
+printf '  API token file: %s (contents were not displayed)\n' "${TOKEN_FILE}"
 if [[ "${access_mode}" == "https" ]]; then
-    printf '  2. Trust the public CA at %s/rootCA.pem on client devices.\n' "${MKCERT_CA_DIRECTORY}"
+    printf '  Web address: https://%s/\n' "${tls_hostname}"
+    printf '  Client trust certificate: %s/rootCA.pem\n' "${MKCERT_CA_DIRECTORY}"
 else
-    printf '  2. Use a temporary token only on a trusted isolated LAN.\n'
+    primary_ip="$(hostname -I | awk '{print $1}')"
+    printf '  Web address: http://%s/\n' "${primary_ip:-CONTROLLER-IP}"
+    printf '  Security mode: temporary unencrypted HTTP on the trusted LAN\n'
 fi
-printf '  3. Keep valve power disconnected and run the relay acceptance checklist.\n'
-printf '  4. After acceptance: sudo systemctl enable --now open-sprinkler-v3.service\n'
+if [[ "${start_service}" == true ]]; then
+    printf '  Controller service: enabled and running\n'
+    printf '  Safety: keep valve power disconnected until relay acceptance passes\n'
+else
+    printf '  Controller service: disabled and stopped (--no-start)\n'
+fi
