@@ -35,6 +35,12 @@ together. A separate Raspberry Pi can now follow the
 Keep the production 2.0 controller untouched until that hardware acceptance is
 complete.
 
+For a fresh test Pi, `scripts/install-v3.sh` automates the installation while
+preserving existing configuration and secrets. It defaults to the tested
+`v3-ui-checkpoint-2026-09-17` tag and refuses to start GPIO control without an
+explicit valve-power-disconnected confirmation. See the installation guide for
+temporary HTTP and private-LAN HTTPS examples.
+
 Weather automation requires outbound HTTPS and DNS access to
 `api.open-meteo.com` and `geocoding-api.open-meteo.com`. It does not require an
 API key for the project's non-commercial use. Location and threshold settings

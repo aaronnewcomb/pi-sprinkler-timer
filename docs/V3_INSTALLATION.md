@@ -8,6 +8,53 @@ The target image is Raspberry Pi OS Lite 64-bit Trixie. Use Raspberry Pi Imager
 and new boot media rather than upgrading a Bookworm card in place. Configure the
 hostname, user, network, timezone, and SSH access in Imager before first boot.
 
+## Automated installation
+
+The checked-in installer automates system packages, the isolated Python
+environment, restricted service account, configuration, API-token prompt,
+systemd unit, lighttpd proxy, optional private-LAN TLS, tests, and validation.
+It defaults to the tested `v3-ui-checkpoint-2026-09-17` tag. It preserves an
+existing configuration, database, certificate pair, and API token.
+
+Bootstrap the installer from the development branch on a fresh Pi:
+
+```bash
+git clone --branch develop/v3 --single-branch \
+    https://github.com/aaronnewcomb/pi-sprinkler-timer.git \
+    pi-sprinkler-installer
+cd pi-sprinkler-installer
+```
+
+For temporary HTTP acceptance on an isolated trusted LAN:
+
+```bash
+sudo ./scripts/install-v3.sh --mode http
+```
+
+For private-LAN HTTPS, provide the stable hostname and IP included in the
+certificate:
+
+```bash
+sudo ./scripts/install-v3.sh --mode https \
+    --hostname sprinkler.local --ip 192.168.0.50
+```
+
+The API token is collected through a masked system prompt and is never printed.
+By default the installer leaves `open-sprinkler-v3.service` stopped and
+disabled. To start it during installation, first disconnect the 24 VAC valve
+transformer, then explicitly confirm that condition:
+
+```bash
+sudo ./scripts/install-v3.sh --mode http \
+    --start --valve-power-disconnected
+```
+
+Use `--ref develop/v3` only when deliberately testing development beyond the
+checkpoint. Run `./scripts/install-v3.sh --help` for all options. The detailed
+manual steps below remain the troubleshooting and audit reference. On an
+existing installation, stop `open-sprinkler-v3.service` before rerunning the
+installer; it refuses to modify a live controller.
+
 ## 1. Inspect the fresh system
 
 ```bash
