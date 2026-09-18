@@ -48,9 +48,9 @@ Options:
                         Required with --start as a relay safety confirmation.
   -h, --help            Show this help.
 
-The installer never overwrites an existing controller configuration or API
-token. It does not enable the GPIO service at boot. Complete relay acceptance
-before enabling the service manually.
+The installer never overwrites an existing controller configuration or valid
+API token. It does not enable the GPIO service at boot. Complete relay
+acceptance before enabling the service manually.
 EOF
 }
 
@@ -94,6 +94,20 @@ updated, count = re.subn(
 if count != 1:
     raise SystemExit(f"Expected one secure_cookies setting in {path}, found {count}")
 path.write_text(updated, encoding="utf-8")
+PY
+}
+
+token_is_valid() {
+    python3 - "${TOKEN_FILE}" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+try:
+    token = path.read_text(encoding="utf-8").strip()
+except (OSError, UnicodeError):
+    raise SystemExit(1)
+raise SystemExit(0 if len(token) >= 32 else 1)
 PY
 }
 
@@ -243,21 +257,34 @@ if [[ ! -e "${CONFIGURATION_FILE}" ]]; then
         "${SOURCE_DIRECTORY}/open-sprinkler-v3.ini.example" \
         "${CONFIGURATION_FILE}"
 fi
-if [[ ! -s "${TOKEN_FILE}" ]]; then
+if ! token_is_valid; then
+    log "Creating the API token"
+    cat <<'EOF'
+The API token is the private password used by the browser dashboard and Home
+Assistant to control this sprinkler system.
+
+Before continuing:
+  1. Use your password manager to generate a unique random password containing
+     at least 32 characters. A length of 40 to 64 characters is recommended.
+  2. Save it in the password manager with this controller's hostname or IP.
+  3. Paste that same saved value at the masked prompt below.
+
+The installer will not print the token, and the dashboard will not show it
+later. Keep the saved copy for future browser logins and Home Assistant setup.
+The masked prompt waits indefinitely. Press Ctrl+C if you need to stop; rerun
+this installer later and it will safely return to this step.
+EOF
+    read -r -p "Press Enter after the API token is generated and safely saved: " _
     install -m 0640 -o root -g open-sprinkler /dev/null "${TOKEN_FILE}"
-    systemd-ask-password "Pi Sprinkler Timer API token (at least 32 characters)" \
-        >"${TOKEN_FILE}"
+    if ! systemd-ask-password --timeout=0 \
+        "Paste the saved Pi Sprinkler Timer API token" >"${TOKEN_FILE}"; then
+        install -m 0640 -o root -g open-sprinkler /dev/null "${TOKEN_FILE}"
+        fail "API token entry was cancelled; rerun the installer to resume"
+    fi
 fi
 chown root:open-sprinkler "${TOKEN_FILE}"
 chmod 0640 "${TOKEN_FILE}"
-python3 - "${TOKEN_FILE}" <<'PY'
-from pathlib import Path
-import sys
-
-path = Path(sys.argv[1])
-if len(path.read_text(encoding="utf-8").strip()) < 32:
-    raise SystemExit(f"API token must contain at least 32 characters: {path}")
-PY
+token_is_valid || fail "API token must contain at least 32 characters: ${TOKEN_FILE}"
 
 log "Installing and validating the systemd service"
 install -m 0644 "${SOURCE_DIRECTORY}/systemd/open-sprinkler-v3.service" \

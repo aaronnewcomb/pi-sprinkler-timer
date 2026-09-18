@@ -14,7 +14,7 @@ The checked-in installer automates system packages, the isolated Python
 environment, restricted service account, configuration, API-token prompt,
 systemd unit, lighttpd proxy, optional private-LAN TLS, tests, and validation.
 It defaults to the tested `v3-ui-checkpoint-2026-09-17` tag. It preserves an
-existing configuration, database, certificate pair, and API token.
+existing configuration, database, certificate pair, and valid API token.
 
 Bootstrap the installer from the development branch on a fresh Pi:
 
@@ -39,7 +39,18 @@ sudo ./scripts/install-v3.sh --mode https \
     --hostname sprinkler.local --ip 192.168.0.50
 ```
 
-The API token is collected through a masked system prompt and is never printed.
+Before running the installer, use a password manager to generate and save a
+unique random token containing at least 32 characters. A length of 40 to 64
+characters is recommended. Label it with the controller hostname or IP. The
+same token signs in to the browser dashboard and authenticates Home Assistant,
+so the saved copy is needed after installation.
+
+The installer explains these steps, waits for confirmation that the token is
+saved, and then collects it through a masked system prompt. The prompt has no
+time limit and the token is never printed. If the installer is interrupted at
+this step, rerun the same command. Existing completed work is reused, and an
+empty or incomplete token file is safely replaced by a new prompt.
+
 By default the installer leaves `open-sprinkler-v3.service` stopped and
 disabled. To start it during installation, first disconnect the 24 VAC valve
 transformer, then explicitly confirm that condition:
@@ -130,20 +141,22 @@ precipitation threshold, and post-precipitation delay are stored in SQLite and
 configured later from the browser, so they do not belong in this root-managed
 file.
 
-Create the API token through a masked prompt. Use a password manager to provide
-at least 32 characters, and do not paste the value into chat, shell arguments,
-or the repository:
+Create the API token through a masked prompt. First use a password manager to
+generate and save a unique random password containing at least 32 characters;
+40 to 64 characters is recommended. Label it with the controller hostname or
+IP. Do not paste the value into chat, shell arguments, or the repository:
 
 ```bash
 sudo install -m 0640 -o root -g open-sprinkler /dev/null \
     /etc/open-sprinkler/api-token
-sudo systemd-ask-password "Pi Sprinkler Timer API token" | \
+sudo systemd-ask-password --timeout=0 "Paste the saved API token" | \
     sudo tee /etc/open-sprinkler/api-token >/dev/null
 ```
 
-The same token can be stored in Home Assistant `secrets.yaml`. The browser
-exchanges it for a signed, HttpOnly session and does not retain it in web
-storage.
+The same saved token can be stored in Home Assistant `secrets.yaml`. The
+browser exchanges it for a signed, HttpOnly session and does not retain it in
+web storage. The prompt waits indefinitely; press Ctrl+C if you need to stop
+and repeat these token-creation commands later.
 
 ## 5. Install the service without starting it
 

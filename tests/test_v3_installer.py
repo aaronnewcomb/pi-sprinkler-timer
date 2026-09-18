@@ -34,10 +34,18 @@ class InstallerTests(unittest.TestCase):
     def test_installer_preserves_configuration_and_secrets(self):
         script = INSTALLER.read_text(encoding="utf-8")
         self.assertIn('if [[ ! -e "${CONFIGURATION_FILE}" ]]', script)
-        self.assertIn('if [[ ! -s "${TOKEN_FILE}" ]]', script)
-        self.assertIn('systemd-ask-password "Pi Sprinkler Timer API token', script)
+        self.assertIn("if ! token_is_valid; then", script)
+        self.assertIn("raise SystemExit(0 if len(token) >= 32 else 1)", script)
         self.assertNotIn("set -x", script)
         self.assertNotIn('cat "${TOKEN_FILE}"', script)
+
+    def test_token_prompt_explains_storage_and_has_no_timeout(self):
+        script = INSTALLER.read_text(encoding="utf-8")
+        self.assertIn("Use your password manager to generate", script)
+        self.assertIn("at least 32 characters", script)
+        self.assertIn("future browser logins and Home Assistant setup", script)
+        self.assertIn("systemd-ask-password --timeout=0", script)
+        self.assertIn("rerun the installer to resume", script)
 
     def test_installer_requires_relay_safety_confirmation_before_start(self):
         script = INSTALLER.read_text(encoding="utf-8")
