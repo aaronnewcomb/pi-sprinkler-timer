@@ -59,7 +59,7 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
   background: linear-gradient(145deg, var(--brand), var(--brand-dark));
   box-shadow: 0 8px 20px rgba(7, 63, 67, 0.22);
 }
-.brand-mark svg, .modal-icon svg { width: 90%; height: 90%; }
+.brand-mark img, .modal-icon img { width: 100%; height: 100%; }
 
 .header-actions, .button-row, .modal-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .weather-nav { color: var(--brand-dark); }
