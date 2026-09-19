@@ -85,3 +85,17 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn("Never copy or share `rootCA-key.pem`", guide)
         self.assertIn("api.open-meteo.com", guide)
         self.assertIn("live\ncountdown", guide)
+
+    def test_home_assistant_uses_product_namespace(self):
+        configuration = (
+            ROOT / "docs" / "home-assistant" / "rest.yaml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("PI_SPRINKLER_HOST", configuration)
+        self.assertIn("pi_sprinkler_authorization", configuration)
+        self.assertIn("pi_sprinkler_active_station", configuration)
+        self.assertIn("pi_sprinkler_start_station", configuration)
+        self.assertIn("pi_sprinkler_stop_station", configuration)
+        self.assertIn("pi_sprinkler_stop_all", configuration)
+        self.assertNotIn("OPEN_SPRINKLER_HOST", configuration)
+        self.assertNotIn("open_sprinkler_", configuration)

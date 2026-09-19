@@ -1,27 +1,27 @@
 # Merge these sections into Home Assistant configuration.yaml.
 # Store the complete Authorization value in secrets.yaml as:
-# open_sprinkler_authorization: Bearer YOUR_GENERATED_TOKEN
+# pi_sprinkler_authorization: Bearer YOUR_GENERATED_TOKEN
 
 rest:
-  - resource: https://OPEN_SPRINKLER_HOST/api/v1/status
+  - resource: https://PI_SPRINKLER_HOST/api/v1/status
     scan_interval: 10
     timeout: 5
     headers:
-      Authorization: !secret open_sprinkler_authorization
+      Authorization: !secret pi_sprinkler_authorization
     sensor:
       - name: Pi Sprinkler Timer active station
-        unique_id: open_sprinkler_active_station
+        unique_id: pi_sprinkler_active_station
         value_template: "{{ value_json.active_station_id | default('none', true) }}"
         json_attributes:
           - stations
           - active_run_id
           - active_until
 
-  - resource: https://OPEN_SPRINKLER_HOST/api/v1/weather
+  - resource: https://PI_SPRINKLER_HOST/api/v1/weather
     scan_interval: 300
     timeout: 10
     headers:
-      Authorization: !secret open_sprinkler_authorization
+      Authorization: !secret pi_sprinkler_authorization
     sensor:
       - name: Pi Sprinkler Timer weather
         unique_id: pi_sprinkler_timer_weather
@@ -44,22 +44,22 @@ rest:
           - error
 
 rest_command:
-  open_sprinkler_start_station:
-    url: "https://OPEN_SPRINKLER_HOST/api/v1/stations/{{ station_id }}/start"
+  pi_sprinkler_start_station:
+    url: "https://PI_SPRINKLER_HOST/api/v1/stations/{{ station_id }}/start"
     method: POST
     headers:
-      Authorization: !secret open_sprinkler_authorization
+      Authorization: !secret pi_sprinkler_authorization
       Content-Type: application/json
     payload: '{"duration_seconds": {{ duration_seconds | int }}}'
 
-  open_sprinkler_stop_station:
-    url: "https://OPEN_SPRINKLER_HOST/api/v1/stations/{{ station_id }}/stop"
+  pi_sprinkler_stop_station:
+    url: "https://PI_SPRINKLER_HOST/api/v1/stations/{{ station_id }}/stop"
     method: POST
     headers:
-      Authorization: !secret open_sprinkler_authorization
+      Authorization: !secret pi_sprinkler_authorization
 
-  open_sprinkler_stop_all:
-    url: "https://OPEN_SPRINKLER_HOST/api/v1/actions/stop-all"
+  pi_sprinkler_stop_all:
+    url: "https://PI_SPRINKLER_HOST/api/v1/actions/stop-all"
     method: POST
     headers:
-      Authorization: !secret open_sprinkler_authorization
+      Authorization: !secret pi_sprinkler_authorization
