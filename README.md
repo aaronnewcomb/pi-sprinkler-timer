@@ -8,9 +8,8 @@ GPIO Zero controls active-low relay boards through the `lgpio` backend. A
 single systemd service owns every relay and automatically turns off manual runs
 when their configured time expires.
 
-> **Project status:** Version 3 is on the `develop/v3` branch and is undergoing
-> final live-system acceptance. The proven `v2.0.0` release remains available
-> as a rollback.
+> **Current release:** Version 3.0.0. The proven `v2.0.0` release remains
+> available for legacy installations and rollback.
 
 ## Features
 
@@ -43,8 +42,8 @@ when their configured time expires.
 The automated installer explains each stage, installs system packages and the
 application, runs the test suite, creates the restricted service account,
 configures lighttpd, collects the API token, and enables and starts the
-controller. It installs the tested `v3-ui-checkpoint-2026-09-17` application
-tag by default; use `--ref develop/v3` only for deliberate development testing.
+controller. It installs the released `v3.0.0` tag by default; use
+`--ref develop/v3` only for deliberate development testing.
 On a first-generation, single-core Raspberry Pi Zero, the initial installation
 can take about 15 minutes. Package installation and the test suite may run
 quietly for several minutes, so allow the installer to finish unless it reports
@@ -57,10 +56,10 @@ sudo apt update
 sudo apt install -y git ca-certificates
 ```
 
-Then clone the installer bootstrap from the development branch:
+Then clone the released installer:
 
 ```bash
-git clone --branch develop/v3 --single-branch \
+git clone --branch v3.0.0 --single-branch \
     https://github.com/aaronnewcomb/pi-sprinkler-timer.git \
     pi-sprinkler-installer
 cd pi-sprinkler-installer

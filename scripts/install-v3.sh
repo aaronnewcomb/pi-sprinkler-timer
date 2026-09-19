@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 readonly DEFAULT_REPOSITORY="https://github.com/aaronnewcomb/pi-sprinkler-timer.git"
-readonly DEFAULT_REF="v3-ui-checkpoint-2026-09-17"
+readonly DEFAULT_REF="v3.0.0"
 readonly APPLICATION_ROOT="/opt/open-sprinkler"
 readonly SOURCE_DIRECTORY="${APPLICATION_ROOT}/source"
 readonly VIRTUAL_ENVIRONMENT="${APPLICATION_ROOT}/.venv"

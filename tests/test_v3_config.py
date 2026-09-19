@@ -1,15 +1,24 @@
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from open_sprinkler import __version__
 from open_sprinkler.config import load_settings, read_api_token
 
 
 class ConfigTests(unittest.TestCase):
+    def test_package_version_matches_project_metadata(self):
+        with (ROOT / "pyproject.toml").open("rb") as metadata_file:
+            project_version = tomllib.load(metadata_file)["project"]["version"]
+
+        self.assertEqual(__version__, "3.0.0")
+        self.assertEqual(project_version, __version__)
+
     def test_loads_named_stations_and_private_server_defaults(self):
         with tempfile.TemporaryDirectory() as directory:
             config_path = Path(directory) / "open-sprinkler.ini"

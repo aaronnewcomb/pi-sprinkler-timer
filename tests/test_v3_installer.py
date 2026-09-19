@@ -29,7 +29,7 @@ class InstallerTests(unittest.TestCase):
 
     def test_installer_defaults_to_the_tested_checkpoint(self):
         script = INSTALLER.read_text(encoding="utf-8")
-        self.assertIn('readonly DEFAULT_REF="v3-ui-checkpoint-2026-09-17"', script)
+        self.assertIn('readonly DEFAULT_REF="v3.0.0"', script)
         self.assertIn('source_ref="${PI_SPRINKLER_REF:-${DEFAULT_REF}}"', script)
 
     def test_installer_preserves_configuration_and_secrets(self):

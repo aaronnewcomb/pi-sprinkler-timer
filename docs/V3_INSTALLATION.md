@@ -14,7 +14,7 @@ The checked-in installer presents and explains eight stages: platform and
 relay safety checks, operating-system packages, application installation,
 automated tests, service account and credentials, the systemd unit, web
 transport, and final activation. It defaults to the tested
-`v3-ui-checkpoint-2026-09-17` tag and preserves an existing configuration,
+`v3.0.0` tag and preserves an existing configuration,
 database, certificate pair, and valid API token.
 
 Install Git and the HTTPS certificate bundle on a fresh Pi:
