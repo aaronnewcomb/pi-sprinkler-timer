@@ -45,6 +45,10 @@ application, runs the test suite, creates the restricted service account,
 configures lighttpd, collects the API token, and enables and starts the
 controller. It installs the tested `v3-ui-checkpoint-2026-09-17` application
 tag by default; use `--ref develop/v3` only for deliberate development testing.
+On a first-generation, single-core Raspberry Pi Zero, the initial installation
+can take about 15 minutes. Package installation and the test suite may run
+quietly for several minutes, so allow the installer to finish unless it reports
+an error.
 
 Install the two bootstrap packages needed to download the installer:
 
