@@ -30,6 +30,7 @@ when their configured time expires.
 - Raspberry Pi supported by Raspberry Pi OS
 - Raspberry Pi OS Lite Trixie, 32-bit or 64-bit
 - Network connection
+- Git and HTTPS certificate support for downloading the installer bootstrap
 - Compatible active-low relay board
 - 24 VAC sprinkler transformer and valves
 - Python 3.11 or newer, installed automatically on Trixie
@@ -45,7 +46,14 @@ configures lighttpd, collects the API token, and enables and starts the
 controller. It installs the tested `v3-ui-checkpoint-2026-09-17` application
 tag by default; use `--ref develop/v3` only for deliberate development testing.
 
-Clone the installer bootstrap from the development branch:
+Install the two bootstrap packages needed to download the installer:
+
+```bash
+sudo apt update
+sudo apt install -y git ca-certificates
+```
+
+Then clone the installer bootstrap from the development branch:
 
 ```bash
 git clone --branch develop/v3 --single-branch \

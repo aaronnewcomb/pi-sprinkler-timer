@@ -75,6 +75,7 @@ class DeploymentTests(unittest.TestCase):
     def test_installation_guide_has_complete_tls_paths(self):
         guide = (ROOT / "docs" / "V3_INSTALLATION.md").read_text(encoding="utf-8")
 
+        self.assertIn("sudo apt install -y git ca-certificates", guide)
         self.assertIn("Option A: temporary HTTP", guide)
         self.assertIn("secure_cookies = false", guide)
         self.assertIn("Option B: trusted HTTPS", guide)

@@ -17,7 +17,14 @@ transport, and final activation. It defaults to the tested
 `v3-ui-checkpoint-2026-09-17` tag and preserves an existing configuration,
 database, certificate pair, and valid API token.
 
-Bootstrap the installer from the development branch on a fresh Pi:
+Install Git and the HTTPS certificate bundle on a fresh Pi:
+
+```bash
+sudo apt update
+sudo apt install -y git ca-certificates
+```
+
+Then bootstrap the installer from the development branch:
 
 ```bash
 git clone --branch develop/v3 --single-branch \

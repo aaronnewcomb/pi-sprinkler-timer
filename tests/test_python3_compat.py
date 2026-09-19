@@ -273,6 +273,7 @@ class Python3CompatibilityTests(unittest.TestCase):
     def test_readme_preserves_relay_and_sudo_safety(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("valve transformer disconnected", readme)
+        self.assertIn("sudo apt install -y git ca-certificates", readme)
         service = (ROOT / "systemd" / "open-sprinkler.service").read_text(
             encoding="utf-8"
         )
