@@ -170,6 +170,8 @@ def test_service_is_hardened_and_uses_dedicated_account():
     unit = UNIT.read_text()
     assert "User=garage-door-monitor" in unit
     assert "SupplementaryGroups=gpio" in unit
+    assert "RuntimeDirectory=pi-sprinkler-garage-door" in unit
+    assert "WorkingDirectory=/run/pi-sprinkler-garage-door" in unit
     assert "After=network-online.target" in unit
     assert "/etc/pi-sprinkler-garage-door/garage-door.ini" in unit
     assert "NoNewPrivileges=true" in unit

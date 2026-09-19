@@ -65,6 +65,8 @@ def test_shutdown_button_unit_is_hardened_and_boot_enabled():
     assert "User=root" in unit
     assert "ExecStart=/usr/bin/python3 /usr/local/libexec/open-sprinkler-shutdown-button.py" in unit
     assert "EnvironmentFile=-/etc/default/open-sprinkler-shutdown-button" in unit
+    assert "RuntimeDirectory=open-sprinkler-shutdown-button" in unit
+    assert "WorkingDirectory=/run/open-sprinkler-shutdown-button" in unit
     assert "NoNewPrivileges=true" in unit
     assert "ProtectSystem=strict" in unit
     assert "WantedBy=multi-user.target" in unit
