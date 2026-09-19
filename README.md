@@ -131,6 +131,20 @@ sudo systemctl restart open-sprinkler-v3.service
 journalctl -u open-sprinkler-v3.service -n 80 --no-pager
 ```
 
+## Optional physical shutdown button
+
+The repository includes a systemd-based replacement for the legacy Python 2
+shutdown listener. It uses BCM GPIO 3, physical pin 5, by default:
+
+```bash
+sudo ./scripts/install-shutdown-button.sh
+```
+
+The installer uses GPIO Zero with `lgpio`, disables the matching `rc.local` and
+SysV startup entries after backing them up, and enables the new service. See
+the [physical shutdown button guide](docs/SHUTDOWN_BUTTON.md) for pin changes,
+service commands, and the migration safety details.
+
 ## Development
 
 Version 3 requires Python 3.11 or newer. Use
