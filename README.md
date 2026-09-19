@@ -98,6 +98,11 @@ sign-in and Home Assistant. It is never printed by the installer.
 See the [complete v3 installation and acceptance guide](docs/V3_INSTALLATION.md)
 for HTTPS trust setup, troubleshooting, updates, and relay testing.
 
+## Optional GPIO services
+
+- [Physical shutdown button](docs/SHUTDOWN_BUTTON.md)
+- [Garage-door MQTT monitor](docs/GARAGE_DOOR_MONITOR.md)
+
 ## Initial configuration and acceptance
 
 After installation:

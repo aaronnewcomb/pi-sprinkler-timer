@@ -1,0 +1,30 @@
+[Unit]
+Description=Pi Sprinkler Timer garage door MQTT monitor
+Documentation=https://github.com/aaronnewcomb/pi-sprinkler-timer
+Wants=network-online.target
+After=network-online.target local-fs.target
+
+[Service]
+Type=simple
+User=garage-door-monitor
+Group=garage-door-monitor
+SupplementaryGroups=gpio
+ExecStart=/usr/bin/python3 /usr/local/libexec/pi-sprinkler-garage-door.py --config /etc/pi-sprinkler-garage-door/garage-door.ini
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=10s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
