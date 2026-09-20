@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0b3a3e">
+    <title>Pi Sprinkler Timer</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script src="/assets/app.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="brand" href="/" aria-label="Pi Sprinkler Timer home">
+          <span class="brand-mark" aria-hidden="true"><img src="/favicon.svg" alt=""></span>
+          <span>
+            <strong>Pi Sprinkler Timer</strong>
+            <small>Local irrigation control</small>
+          </span>
+        </a>
+        <div class="header-actions">
+          <span id="connection-badge" class="status-pill neutral" title="Checking the local controller">Checking controller</span>
+          <button id="weather-button" class="button ghost compact weather-nav" type="button" title="Open weather settings">Weather off</button>
+          <button id="settings-button" class="button ghost compact" type="button">Settings</button>
+          <button id="logout-button" class="button ghost compact" type="button">Log out</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero panel">
+          <div>
+            <p class="eyebrow">Controller status</p>
+            <h1 id="controller-title">Checking the yard...</h1>
+            <p id="controller-detail" class="muted">Connecting to the local controller.</p>
+            <span id="hold-status" class="status-pill watering" hidden></span>
+          </div>
+          <button id="stop-all-button" class="button danger" type="button" hidden>
+            <span aria-hidden="true">■</span>
+            <span id="stop-action-label">Stop current schedule</span>
+          </button>
+        </section>
+
+        <section class="section-block" aria-labelledby="stations-heading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Manual control</p>
+              <h2 id="stations-heading">Stations</h2>
+            </div>
+            <p class="muted">Every manual run stops automatically.</p>
+          </div>
+          <div id="stations-grid" class="station-grid" aria-live="polite"></div>
+        </section>
+
+        <div class="dashboard-grid">
+          <section class="panel" aria-labelledby="delay-heading">
+            <div class="section-heading compact-heading">
+              <div>
+                <p class="eyebrow">Schedule control</p>
+                <h2 id="delay-heading">Schedule hold</h2>
+              </div>
+              <span id="delay-badge" class="status-pill online">Schedules active</span>
+            </div>
+            <p id="delay-detail" class="muted">Scheduled programs may run.</p>
+            <button id="manage-delay-button" class="button secondary" type="button">Manage schedule hold</button>
+          </section>
+
+          <section class="panel" aria-labelledby="quick-heading">
+            <p class="eyebrow">At a glance</p>
+            <h2 id="quick-heading">System</h2>
+            <dl class="metric-list">
+              <div><dt>Active station</dt><dd id="active-station-metric">None</dd></div>
+              <div><dt>Automatic stop</dt><dd id="active-until-metric">Not running</dd></div>
+              <div><dt>Schedules</dt><dd id="schedule-count-metric">0</dd></div>
+            </dl>
+          </section>
+        </div>
+
+        <section class="section-block" aria-labelledby="schedules-heading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Automation</p>
+              <h2 id="schedules-heading">Schedules</h2>
+            </div>
+            <button id="add-schedule-button" class="button primary" type="button">+ New schedule</button>
+          </div>
+          <div id="schedule-list" class="card-list"></div>
+        </section>
+
+        <section class="section-block" aria-labelledby="history-heading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Recent activity</p>
+              <h2 id="history-heading">Run history</h2>
+            </div>
+            <button id="refresh-button" class="button ghost compact" type="button">Refresh</button>
+          </div>
+          <div id="history-list" class="history-list"></div>
+        </section>
+      </main>
+
+      <footer>
+        <span>Pi Sprinkler Timer 3.0</span>
+        <span>Local first. Valve safe.</span>
+      </footer>
+    </div>
+
+    <dialog id="login-dialog" class="modal" aria-labelledby="login-heading">
+      <form id="login-form" class="modal-card">
+        <span class="modal-icon" aria-hidden="true"><img src="/favicon.svg" alt=""></span>
+        <p class="eyebrow">Private controller</p>
+        <h2 id="login-heading">Sign in to Pi Sprinkler Timer</h2>
+        <p class="muted">Enter the API token stored on this controller. It is exchanged for a browser session and is not saved by this page.</p>
+        <label>
+          API token
+          <input id="token-input" name="token" type="password" autocomplete="current-password" required>
+        </label>
+        <p id="login-error" class="form-error" role="alert"></p>
+        <button class="button primary full" type="submit">Connect to controller</button>
+      </form>
+    </dialog>
+
+    <dialog id="settings-dialog" class="modal" aria-labelledby="settings-heading">
+      <div class="modal-card wide">
+        <div class="modal-heading">
+          <div>
+            <p class="eyebrow">Controller options</p>
+            <h2 id="settings-heading">Settings</h2>
+          </div>
+          <button id="close-settings-button" class="icon-button" type="button" aria-label="Close settings">×</button>
+        </div>
+
+        <section class="settings-section" aria-labelledby="rain-delay-settings-heading">
+          <div class="section-heading compact-heading">
+            <div>
+              <h3 id="rain-delay-settings-heading">Schedule holds</h3>
+              <p class="muted small">Temporarily pause new scheduled programs.</p>
+            </div>
+            <span id="settings-delay-badge" class="status-pill online">No delay</span>
+          </div>
+          <p id="settings-delay-detail" class="muted">Scheduled programs may run.</p>
+          <p class="settings-note">Preset and custom controls create a manual hold. Weather automation manages a separate automatic hold. Neither type stops a station that is already running or prevents manual watering.</p>
+          <div class="button-row">
+            <button class="button secondary delay-button" data-hours="24" type="button">24 hours</button>
+            <button class="button secondary delay-button" data-hours="48" type="button">48 hours</button>
+            <button class="button secondary delay-button" data-hours="72" type="button">72 hours</button>
+            <button id="clear-delay-button" class="button ghost" type="button">Clear manual hold</button>
+          </div>
+          <div class="custom-delay-row">
+            <label for="custom-delay-hours">Custom delay</label>
+            <div class="duration-field">
+              <input id="custom-delay-hours" type="number" min="1" max="336" step="1" value="12">
+              <span>hours</span>
+            </div>
+            <button id="set-custom-delay-button" class="button secondary" type="button">Set delay</button>
+          </div>
+        </section>
+
+        <section id="weather-settings-section" class="settings-section" aria-labelledby="weather-settings-heading">
+          <div class="section-heading compact-heading">
+            <div>
+              <h3 id="weather-settings-heading">Weather automation</h3>
+              <p class="muted small">Use forecast precipitation to pause scheduled programs.</p>
+            </div>
+            <span id="weather-settings-badge" class="status-pill neutral">Off</span>
+          </div>
+          <form id="weather-form" class="settings-form">
+            <label class="toggle-row">
+              <input id="weather-enabled" name="enabled" type="checkbox">
+              Enable automatic weather delays
+            </label>
+            <p class="muted small">Enter a ZIP or postal code, or leave it blank and enter coordinates.</p>
+            <div class="form-grid">
+              <label>
+                ZIP or postal code
+                <input id="weather-postal-code" name="postal_code" type="text" maxlength="100" placeholder="95014">
+              </label>
+              <label>
+                Latitude
+                <input id="weather-latitude" name="latitude" type="number" min="-90" max="90" step="0.0001" placeholder="37.3230">
+              </label>
+              <label>
+                Longitude
+                <input id="weather-longitude" name="longitude" type="number" min="-180" max="180" step="0.0001" placeholder="-122.0322">
+              </label>
+              <label>
+                Precipitation trigger
+                <div class="duration-field setting-value-field">
+                  <input id="weather-threshold" name="threshold" type="number" min="0.01" max="10" step="0.01" value="0.25" required>
+                  <span>inches</span>
+                </div>
+              </label>
+              <label>
+                Delay after precipitation
+                <div class="duration-field setting-value-field">
+                  <input id="weather-delay-hours" name="delay_hours" type="number" min="1" max="336" step="1" value="24" required>
+                  <span>hours</span>
+                </div>
+              </label>
+            </div>
+            <p class="muted small">The trigger is total precipitation across the previous 24 hours and forecast 24 hours. The hold ends after the final wet hour plus the configured delay.</p>
+            <p id="weather-form-error" class="form-error" role="alert"></p>
+            <div class="button-row">
+              <button class="button primary" type="submit">Save weather settings</button>
+              <button id="refresh-weather-button" class="button ghost" type="button">Refresh weather</button>
+            </div>
+          </form>
+          <div id="weather-current" class="weather-current muted">Weather automation is off.</div>
+          <div id="weather-forecast" class="weather-forecast"></div>
+          <p class="muted small">Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>. Forecasts can be wrong, so review active holds before relying on automation.</p>
+        </section>
+
+        <section class="settings-section" aria-labelledby="controller-settings-heading">
+          <h3 id="controller-settings-heading">Controller</h3>
+          <form id="controller-settings-form" class="settings-form">
+            <div id="controller-stations" class="controller-stations"></div>
+            <div class="form-grid">
+              <label>Timezone
+                <input id="controller-timezone" type="text" placeholder="America/Los_Angeles" required>
+              </label>
+              <label>Maximum run time
+                <div class="duration-field setting-value-field">
+                  <input id="controller-max-duration" type="number" min="1" max="1440" required>
+                  <span>minutes</span>
+                </div>
+              </label>
+            </div>
+            <label>Header Stop button
+              <select id="controller-stop-action">
+                <option value="station">Stop current station only</option>
+                <option value="schedule">Stop the current schedule</option>
+                <option value="day">Stop watering for the rest of today</option>
+              </select>
+            </label>
+            <p class="settings-note">Station names, timezone, run-time limit, and Stop behavior apply immediately. GPIO pin changes are saved but require a service restart before relay ownership changes.</p>
+            <p id="controller-restart-notice" class="form-warning" hidden>GPIO configuration changed. Restart open-sprinkler-v3.service when it is safe to transfer relay control.</p>
+            <p id="controller-settings-error" class="form-error" role="alert"></p>
+            <button class="button primary" type="submit">Save controller settings</button>
+          </form>
+        </section>
+      </div>
+    </dialog>
+
+    <dialog id="schedule-dialog" class="modal" aria-labelledby="schedule-form-heading">
+      <form id="schedule-form" class="modal-card wide">
+        <div class="modal-heading">
+          <div>
+            <p id="schedule-form-eyebrow" class="eyebrow">New automation</p>
+            <h2 id="schedule-form-heading">Create schedule</h2>
+          </div>
+          <button id="close-schedule-button" class="icon-button" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Name
+            <input name="name" type="text" maxlength="100" placeholder="Front yard morning" required>
+          </label>
+          <label>
+            Start time
+            <input name="start_time" type="time" required>
+          </label>
+        </div>
+        <fieldset>
+          <legend>Watering days</legend>
+          <div class="weekday-grid">
+            <label><input type="checkbox" name="day" value="0">Mon</label>
+            <label><input type="checkbox" name="day" value="1">Tue</label>
+            <label><input type="checkbox" name="day" value="2">Wed</label>
+            <label><input type="checkbox" name="day" value="3">Thu</label>
+            <label><input type="checkbox" name="day" value="4">Fri</label>
+            <label><input type="checkbox" name="day" value="5">Sat</label>
+            <label><input type="checkbox" name="day" value="6">Sun</label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Station sequence</legend>
+          <p class="muted small">Select each station to include and set its run time.</p>
+          <div id="schedule-stations" class="schedule-stations"></div>
+        </fieldset>
+        <p id="schedule-error" class="form-error" role="alert"></p>
+        <div class="modal-actions">
+          <button id="cancel-schedule-button" class="button ghost" type="button">Cancel</button>
+          <button id="schedule-submit-button" class="button primary" type="submit">Create schedule</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

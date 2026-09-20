@@ -1,0 +1,34 @@
+[Unit]
+Description=Pi Sprinkler Timer physical shutdown button
+Documentation=https://github.com/aaronnewcomb/pi-sprinkler-timer
+After=local-fs.target systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+Conflicts=shutdown.target
+Before=shutdown.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+EnvironmentFile=-/etc/default/open-sprinkler-shutdown-button
+RuntimeDirectory=open-sprinkler-shutdown-button
+RuntimeDirectoryMode=0750
+WorkingDirectory=/run/open-sprinkler-shutdown-button
+ExecStart=/usr/bin/python3 /usr/local/libexec/open-sprinkler-shutdown-button.py
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=10s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

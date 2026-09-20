@@ -1,5 +1,5 @@
 [Unit]
-Description=Open Sprinkler scheduler and GPIO controller
+Description=Pi Sprinkler Timer scheduler and GPIO controller
 After=local-fs.target
 
 [Service]

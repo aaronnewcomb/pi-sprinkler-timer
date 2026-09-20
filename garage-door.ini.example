@@ -1,0 +1,16 @@
+[garage-door]
+# BCM GPIO 4 is physical header pin 7. The reed switch closes to ground.
+gpio_pin = 4
+bounce_time = 0.1
+
+mqtt_host = 192.168.0.3
+mqtt_port = 1883
+mqtt_username = replace-with-mqtt-username
+mqtt_password = replace-with-mqtt-password
+mqtt_topic = toggle/garage_door/state
+
+# Preserve the legacy Home Automation payloads and non-retained behavior.
+open_payload = ON
+closed_payload = OFF
+retain = false
+retry_seconds = 5

@@ -1,0 +1,39 @@
+[Unit]
+Description=Pi Sprinkler Timer 3.0 controller and web API
+After=local-fs.target network.target
+
+[Service]
+Type=simple
+User=open-sprinkler
+Group=open-sprinkler
+SupplementaryGroups=gpio
+RuntimeDirectory=open-sprinkler
+RuntimeDirectoryMode=0750
+StateDirectory=open-sprinkler
+StateDirectoryMode=0750
+WorkingDirectory=/run/open-sprinkler
+UMask=0027
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStartPre=/usr/bin/test -r /etc/open-sprinkler/open-sprinkler.ini
+ExecStartPre=/usr/bin/test -r /etc/open-sprinkler/api-token
+ExecStart=/opt/open-sprinkler/.venv/bin/open-sprinkler-v3 --config /etc/open-sprinkler/open-sprinkler.ini --api-token-file /etc/open-sprinkler/api-token
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=20s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

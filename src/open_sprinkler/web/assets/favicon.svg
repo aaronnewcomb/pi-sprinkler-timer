@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Pi Sprinkler Timer">
+  <rect width="64" height="64" rx="18" fill="#073f43"/>
+  <g transform="rotate(-12 29 32)">
+    <rect x="5" y="17" width="47" height="29" rx="5" fill="#4b9b68" stroke="#bfe6ce" stroke-width="1.5"/>
+    <circle cx="10" cy="22" r="2.3" fill="#d9efea"/><circle cx="47" cy="22" r="2.3" fill="#d9efea"/>
+    <circle cx="10" cy="41" r="2.3" fill="#d9efea"/><circle cx="47" cy="41" r="2.3" fill="#d9efea"/>
+    <g fill="#efc75e">
+      <circle cx="15" cy="21" r="1.1"/><circle cx="19" cy="21" r="1.1"/><circle cx="23" cy="21" r="1.1"/><circle cx="27" cy="21" r="1.1"/><circle cx="31" cy="21" r="1.1"/><circle cx="35" cy="21" r="1.1"/><circle cx="39" cy="21" r="1.1"/><circle cx="43" cy="21" r="1.1"/>
+      <circle cx="15" cy="25" r="1.1"/><circle cx="19" cy="25" r="1.1"/><circle cx="23" cy="25" r="1.1"/><circle cx="27" cy="25" r="1.1"/><circle cx="31" cy="25" r="1.1"/><circle cx="35" cy="25" r="1.1"/><circle cx="39" cy="25" r="1.1"/><circle cx="43" cy="25" r="1.1"/>
+    </g>
+    <rect x="23" y="30" width="12" height="10" rx="1.5" fill="#24383b"/>
+    <path d="M26 33h6v4h-6z" fill="#91a3a5"/>
+    <rect x="6" y="28" width="5" height="8" rx="1" fill="#c4ced0"/>
+    <rect x="43" y="30" width="9" height="6" rx="1.5" fill="#c4ced0"/>
+    <path d="M14 35h6m-3-3v6" stroke="#d9efea" stroke-width="1.5" stroke-linecap="round"/>
+  </g>
+  <path d="M49 24C44 32 39 38 39 45a11 11 0 0 0 22 0c0-7-6-14-12-21Z" fill="#47b9ea" stroke="#d7f3ff" stroke-width="1.5"/>
+  <path d="M45 43c0-3 2-7 5-11" fill="none" stroke="#bdeaff" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

@@ -1,230 +1,234 @@
-# pi-sprinkler-timer
-A DIY web-driven scheduler for Raspberry Pi OS, written in Python 3 and served by lighttpd. GPIO Zero controls active-low relay boards through the `lgpio` backend. The scheduler runs as a systemd service.
+# Pi Sprinkler Timer
 
-(If you are looking for a more turnkey and feature rich solution for your RPi, I highly recommend [OpenSprinkler Pi](https://opensprinkler.com/product/opensprinkler-pi/) instead.)
+Pi Sprinkler Timer is a local-first irrigation controller for Raspberry Pi. It
+provides a responsive web dashboard, scheduling, weather-aware holds, run
+history, a versioned REST API, and Home Assistant integration.
 
-## Parts
-* Raspberry Pi
-  * Network connection
-  * Power supply for the Raspberry Pi
-* 24V AC Sprinkler Power Supply
-* Sprinkler Valves
-* 5V Relay Board
+![Pi Sprinkler Timer web dashboard showing controller status, weather, and station controls](docs/images/pi-sprinkler-webpage.png)
 
-## Prerequisites
+GPIO Zero controls active-low relay boards through the `lgpio` backend. A
+single systemd service owns every relay and automatically turns off manual runs
+when their configured time expires.
 
-Use a current Raspberry Pi OS release. Install the web server, Python 3, GPIO Zero, and the `lgpio` pin library from APT:
+> **Current release:** Version 3.0.0. The proven `v2.0.0` release remains
+> available for legacy installations and rollback.
+
+## Features
+
+- Manual station control with a live remaining-time countdown
+- Multi-station schedules with editing and local-time execution
+- Independent manual rain holds and automatic weather holds
+- Open-Meteo current conditions and precipitation forecasts
+- SQLite schedule, settings, and run-history storage
+- Editable station names, BCM GPIO pins, timezone, and safety limits
+- Configurable dashboard Stop behavior
+- Bearer-authenticated REST API and signed browser sessions
+- Home Assistant REST sensors and commands
+- Active-low relay safety, serialized GPIO ownership, and automatic shutoff
+
+## Requirements
+
+- Raspberry Pi supported by Raspberry Pi OS
+- Raspberry Pi OS Lite Trixie, 32-bit or 64-bit
+- Network connection
+- Git and HTTPS certificate support for downloading the installer bootstrap
+- Compatible active-low relay board
+- 24 VAC sprinkler transformer and valves
+- Python 3.11 or newer, installed automatically on Trixie
+
+> **Relay safety:** Keep the valve transformer disconnected during installation
+> and until the controller starts with every station and relay off. Turn on
+> valve power only for supervised station testing.
+
+## Install version 3
+
+The automated installer explains each stage, installs system packages and the
+application, runs the test suite, creates the restricted service account,
+configures lighttpd, collects the API token, and enables and starts the
+controller. It installs the released `v3.0.0` tag by default; use
+`--ref develop/v3` only for deliberate development testing.
+On a first-generation, single-core Raspberry Pi Zero, the initial installation
+can take about 15 minutes. Package installation and the test suite may run
+quietly for several minutes, so allow the installer to finish unless it reports
+an error.
+
+Install the two bootstrap packages needed to download the installer:
 
 ```bash
 sudo apt update
-sudo apt install lighttpd apache2-utils python3 python3-gpiozero python3-lgpio
+sudo apt install -y git ca-certificates
 ```
 
-GPIO access is performed only by the scheduler service. The CGI scripts send commands to that service over a loopback-only TCP socket.
-
-The installation and hardware acceptance procedure below was verified on a
-Raspberry Pi 4 running Raspberry Pi OS Bookworm, Python 3.11, and the Raspberry
-Pi `6.12` kernel.
-
-> **Safety:** Keep the 24 VAC valve transformer disconnected until the service
-> startup, shutdown, and individual relay tests have all passed. This prevents
-> unexpected watering while GPIO behavior is being verified.
-
-Clone the repository and run the complete test suite on the target Pi:
+Then clone the released installer:
 
 ```bash
-git clone https://github.com/aaronnewcomb/pi-sprinkler-timer.git
-cd pi-sprinkler-timer
-PYTHONDONTWRITEBYTECODE=1 python3 -W error \
-    -m unittest discover -s tests -v
+git clone --branch v3.0.0 --single-branch \
+    https://github.com/aaronnewcomb/pi-sprinkler-timer.git \
+    pi-sprinkler-installer
+cd pi-sprinkler-installer
 ```
 
-## Installation
-### Configure lighttpd to run Python scripts with password protection
+### Temporary HTTP acceptance
 
-#### 1. Enable the CGI and authentication modules
+Use HTTP only for short acceptance testing on a trusted isolated LAN:
 
 ```bash
-sudo lighty-enable-mod cgi
-sudo lighty-enable-mod auth
+sudo ./scripts/install-v3.sh --mode http
 ```
 
-On Raspberry Pi OS Bookworm, the packaged CGI configuration maps `/cgi-bin/` to `/usr/lib/cgi-bin/` and uses each executable script's Python 3 shebang.
+The API token is unencrypted on the network in this mode.
 
-#### 2. Create a digest authentication file
+### Private-LAN HTTPS
 
-Check that the target is new because `htdigest -c` creates or replaces the file:
+For regular use, provide the stable hostname and IP that the generated
+certificate should cover:
 
 ```bash
-sudo test ! -e /etc/lighttpd/open-sprinkler.htdigest
-sudo htdigest -c /etc/lighttpd/open-sprinkler.htdigest "Open Sprinkler" admin
-sudo chown root:www-data /etc/lighttpd/open-sprinkler.htdigest
-sudo chmod 640 /etc/lighttpd/open-sprinkler.htdigest
+sudo ./scripts/install-v3.sh --mode https \
+    --hostname sprinkler.local --ip 192.168.0.50
 ```
 
-Enter the password only at the masked terminal prompts. Do not store it in this repository or in shell history.
+The installer prompts for physical confirmation that valve power is
+disconnected. For unattended use, `--valve-power-disconnected` can preconfirm
+that condition only after the transformer has actually been disconnected.
+Use `--no-start` for a deliberately staged installation.
 
-Digest authentication protects the password file, but HTTP traffic is not
-encrypted. Use this configuration only on a trusted network until HTTPS is
-configured.
+The installer also explains how to generate and save the API token. Treat the
+token like a password, keep it in a password manager, and retain it for browser
+sign-in and Home Assistant. It is never printed by the installer.
 
-#### 3. Protect the CGI directory
+See the [complete v3 installation and acceptance guide](docs/V3_INSTALLATION.md)
+for HTTPS trust setup, troubleshooting, updates, and relay testing.
 
-Create `/etc/lighttpd/conf-available/99-open-sprinkler.conf` with:
+## Optional GPIO services
 
-```lighttpd
-server.modules += ( "mod_authn_file" )
+- [Physical shutdown button](docs/SHUTDOWN_BUTTON.md)
+- [Garage-door MQTT monitor](docs/GARAGE_DOOR_MONITOR.md)
 
-auth.backend = "htdigest"
-auth.backend.htdigest.userfile = "/etc/lighttpd/open-sprinkler.htdigest"
+## Initial configuration and acceptance
 
-auth.require = (
-    "/cgi-bin/" => (
-        "method"  => "digest",
-        "realm"   => "Open Sprinkler",
-        "require" => "user=admin"
-    )
-)
-```
+After installation:
 
-Enable the configuration:
+1. Open the web address printed by the installer and sign in with the saved API
+   token.
+2. Open **Settings** and verify every station name and BCM GPIO pin, the
+   timezone, maximum run time, and Stop-button policy.
+3. Turn on the valve power and activate each station individually. Confirm that
+   only the intended relay turns on.
+4. Switch directly between stations and confirm the previous relay turns off.
+5. Create and edit a short schedule, then verify its run appears in history.
+6. Configure weather automation if desired.
+7. Review the service log. If any check fails, stop watering and disconnect
+   valve power before troubleshooting.
+
+## Home Assistant
+
+A complete YAML starter is split into three copy-ready files:
+
+1. Merge [the REST sensors and commands](docs/home-assistant/rest.yaml) into
+   Home Assistant `configuration.yaml`. Replace `PI_SPRINKLER_HOST` with the
+   controller hostname or address and use the same HTTP or HTTPS scheme chosen
+   during installation.
+2. Store the complete authorization value in Home Assistant `secrets.yaml`:
+
+   ```yaml
+   pi_sprinkler_authorization: "Bearer YOUR_SAVED_TOKEN"
+   ```
+
+   Keep the real token out of source control and chat.
+   For HTTPS, Home Assistant must trust the private certificate authority used
+   by the controller. `verify_ssl: false` is available on REST sensors and
+   commands for temporary trusted-LAN acceptance only; retain certificate
+   verification for regular use.
+3. Merge [the station entities](docs/home-assistant/station-entities.yaml) into
+   `configuration.yaml`. Rename the generic stations to match the controller,
+   remove unused stations, and preserve each station's numeric ID. If
+   `input_number:` or `template:` already exists, merge their children rather
+   than creating duplicate top-level keys.
+4. Check the Home Assistant configuration and perform a full restart. Confirm
+   the REST sensors, station switches, duration helper, and Stop All button
+   appear under **Developer Tools → States**.
+5. Add a dashboard **Manual** card and paste
+   [the Entities card template](docs/home-assistant/dashboard.yaml). Adjust any
+   entity IDs that Home Assistant changed to avoid a naming collision.
+
+<img src="docs/images/pi-sprinkler-homeassistant.png"
+     alt="Home Assistant Pi Sprinkler Timer card with weather, duration, station switches, and Stop All"
+     width="420">
+
+The duration helper applies to the next manual station start. Each station
+switch reflects the active station, starts a bounded run when enabled, and
+stops that station when disabled. The Entities card deliberately disables its
+header toggle because the controller permits only one active station. The Stop
+All button remains available as an unconditional safety action. Keep the
+helper's maximum at or below the controller's configured manual-run limit.
+
+The REST API is served under `/api/v1`. The web dashboard is one API client,
+so browser and Home Assistant actions use the same controller and safety rules.
+
+## Important paths
+
+| Purpose | Path |
+| --- | --- |
+| Application source | `/opt/open-sprinkler/source` |
+| Python environment | `/opt/open-sprinkler/.venv` |
+| Controller configuration | `/etc/open-sprinkler/open-sprinkler.ini` |
+| API token | `/etc/open-sprinkler/api-token` |
+| Controller database | `/var/lib/open-sprinkler/open-sprinkler.db` |
+| systemd service | `/etc/systemd/system/open-sprinkler-v3.service` |
+| lighttpd proxy | `/etc/lighttpd/conf-available/99-open-sprinkler-v3.conf` |
+
+Common service commands:
 
 ```bash
-sudo ln -s ../conf-available/99-open-sprinkler.conf \
-    /etc/lighttpd/conf-enabled/99-open-sprinkler.conf
+systemctl status open-sprinkler-v3.service --no-pager -l
+sudo systemctl restart open-sprinkler-v3.service
+journalctl -u open-sprinkler-v3.service -n 80 --no-pager
 ```
 
-#### 4. Validate and restart lighttpd
+## Optional physical shutdown button
+
+The repository includes a systemd-based replacement for the legacy Python 2
+shutdown listener. It uses BCM GPIO 3, physical pin 5, by default:
 
 ```bash
-sudo lighttpd -tt -f /etc/lighttpd/lighttpd.conf
-sudo systemctl restart lighttpd
-systemctl status lighttpd --no-pager
+sudo ./scripts/install-shutdown-button.sh
 ```
 
-### Copy the application
+The installer uses GPIO Zero with `lgpio`, disables the matching `rc.local` and
+SysV startup entries after backing them up, and enables the new service. See
+the [physical shutdown button guide](docs/SHUTDOWN_BUTTON.md) for pin changes,
+service commands, and the migration safety details.
 
-Install the web files. Raspberry Pi OS maps `/cgi-bin/` to `/usr/lib/cgi-bin/`, which is also the path expected by the included service:
+## Development
+
+Version 3 requires Python 3.11 or newer. Use
+[uv](https://docs.astral.sh/uv/) for a local development environment:
 
 ```bash
-sudo install -m 0755 -o root -g root ./*.py /usr/lib/cgi-bin/
-sudo install -m 0644 -o www-data -g www-data index.html /var/www/html/index.html
+uv sync
+uv run pytest
 ```
 
-Create the runtime configuration. This separate step prevents a deployment from overwriting an existing configuration:
+The suite covers the controller, scheduler, persistence, API, authentication,
+weather automation, GPIO safety, web assets, deployment files, and installer.
 
-```bash
-if [ ! -e /usr/lib/cgi-bin/sprinkler.config ]; then
-    sudo install -m 0660 -o www-data -g www-data \
-        sprinkler.config.example /usr/lib/cgi-bin/sprinkler.config
-fi
-sudoedit /usr/lib/cgi-bin/sprinkler.config
-```
+## Documentation
 
-GPIO numbers use Broadcom (BCM) numbering. Set the station pins for your relay board, then add the Pirate Weather API key, latitude, and longitude if weather reporting is desired.
+- [Version 3 installation and acceptance](docs/V3_INSTALLATION.md)
+- [Version 3 architecture and roadmap](docs/V3_ARCHITECTURE.md)
+- [Home Assistant REST starter](docs/home-assistant/rest.yaml)
+- [Home Assistant station entities](docs/home-assistant/station-entities.yaml)
+- [Home Assistant dashboard card](docs/home-assistant/dashboard.yaml)
+- [Legacy version 2 reference](docs/V2_INSTALLATION.md)
 
-For an existing installation, preserve the previous `sprinkler.config` outside
-the web directory before copying application files. Review it for the current
-section names, then install it at `/usr/lib/cgi-bin/sprinkler.config` with owner
-and group `www-data` and mode `0660`. Never commit a runtime configuration or
-API key to the repository.
+## Legacy version 2
 
-### Install the systemd service
+Version 2 remains preserved at the `v2.0.0` tag for rollback and existing
+installations. Do not run the v3 installer over an old production OS or
+overwrite a working v2 boot card. See the
+[legacy v2 reference](docs/V2_INSTALLATION.md).
 
-Install and validate the scheduler service without starting it:
+## License
 
-```bash
-sudo install -m 0644 systemd/open-sprinkler.service /etc/systemd/system/open-sprinkler.service
-sudo systemctl daemon-reload
-sudo systemd-analyze verify /etc/systemd/system/open-sprinkler.service
-```
-
-If this Pi previously used the legacy startup instructions, remove the
-`pigpiod &` and `sprinkler.py &` lines from `/etc/rc.local`. Disable an existing
-`pigpiod` service and verify that no old scheduler owns the loopback port:
-
-```bash
-if systemctl list-unit-files pigpiod.service --no-legend | grep -q pigpiod; then
-    sudo systemctl disable --now pigpiod.service
-fi
-sudo ss -ltnp | grep ':5555' || echo "TCP port 5555 is free"
-```
-
-Only one scheduler process should control the relay pins.
-
-With the valve transformer disconnected, start the service without enabling it
-at boot. All relay indicators must remain off:
-
-```bash
-sudo systemctl start open-sprinkler.service
-systemctl status open-sprinkler.service --no-pager -l
-sudo ss -ltnp | grep ':5555'
-journalctl -u open-sprinkler.service -n 50 --no-pager
-```
-
-The socket must listen only on `127.0.0.1:5555`. Verify the scheduler reports
-every station off, then stop it and confirm a clean shutdown:
-
-```bash
-python3 - <<'PY'
-import socket
-
-with socket.create_connection(("127.0.0.1", 5555), timeout=3) as connection:
-    connection.sendall(b"station_status:0")
-    print(connection.recv(512).decode("utf-8"))
-PY
-
-sudo systemctl stop open-sprinkler.service
-systemctl is-active open-sprinkler.service
-sudo ss -ltnp | grep ':5555' || echo "TCP port 5555 released"
-```
-
-All stations must report `off`, the service must become inactive, and every
-relay must remain off. After those checks pass, enable and start the service:
-
-```bash
-sudo systemctl enable --now open-sprinkler.service
-systemctl is-enabled open-sprinkler.service
-systemctl is-active open-sprinkler.service
-```
-
-The service runs as `www-data` with `gpio` as a supplementary group, restarts after failures, and turns all configured relays off during a normal stop. It binds its control socket to `127.0.0.1:5555`, so relay commands are not accepted from other network hosts.
-
-The unit also creates `/run/open-sprinkler/` as a private writable runtime
-directory. The `lgpio` library needs this directory for its temporary
-notification pipe; the application files under `/usr/lib/cgi-bin/` remain
-read-only.
-
-### Give it a try
-Open a web browser and enter the hostname or IP address of the Raspberry Pi.
-Authenticate with the digest username and password created above. Verify the
-Home, Program, Delay, Manual Control, and Settings pages before changing a
-relay.
-
-![Pi sprinkler timer main web page](images/home.png)
-
-### Test before connecting valves
-
-With the valve transformer still disconnected, use **Manual Control** to
-activate each station individually. Confirm that only the selected relay is on,
-then turn it off before proceeding. Also switch directly from Station 1 to
-Station 2 and verify that Station 1 turns off before Station 2 remains active.
-
-After all stations pass, confirm that the page reports every station off and
-review both service logs for new errors:
-
-```bash
-journalctl -u open-sprinkler.service -n 50 --no-pager
-sudo tail -n 50 /var/log/lighttpd/error.log
-```
-
-Reconnect valve power only after all software and relay checks succeed.
-
-## Known limitations
-
-- HTTPS setup is not yet included. Restrict the current HTTP interface to a
-  trusted network.
-- Web-based reboot and shutdown are not enabled by these instructions. Do not
-  grant the web-server account broad passwordless `sudo` access. A restricted
-  replacement can be added in a future hardening update.
-- The interface retains the original project's basic visual design.
+See [LICENSE](LICENSE).
