@@ -76,11 +76,15 @@ sudo ./scripts/install-v3.sh --mode http \
 Use `--no-start` only when deliberately staging the files while leaving the
 controller service disabled and stopped.
 
-Use `--ref develop/v3` only when deliberately testing development beyond the
+Use `--ref develop/v3.1` only when deliberately testing development beyond the
 checkpoint. Run `./scripts/install-v3.sh --help` for all options. The detailed
 manual steps below remain the troubleshooting, audit, and relay-acceptance
 reference. On an existing installation, stop `open-sprinkler-v3.service`
-before rerunning the installer; it refuses to modify a live controller.
+before rerunning the installer; it refuses to modify a live controller:
+
+```bash
+sudo systemctl stop open-sprinkler-v3.service
+```
 
 ## 1. Inspect the fresh system
 

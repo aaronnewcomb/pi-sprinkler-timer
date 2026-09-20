@@ -212,7 +212,7 @@ command -v apt-get >/dev/null || fail "This installer requires Raspberry Pi OS o
 [[ -r /proc/device-tree/model ]] || fail "Raspberry Pi hardware was not detected"
 grep -q "Raspberry Pi" /proc/device-tree/model || fail "Raspberry Pi hardware was not detected"
 if systemctl is-active --quiet open-sprinkler-v3.service; then
-    fail "Stop open-sprinkler-v3.service before installing or updating"
+    fail $'The controller service is active. Stop it before installing or updating:\n\n  sudo systemctl stop open-sprinkler-v3.service\n\nThen rerun this installer with the same options.'
 fi
 
 if [[ "${start_service}" == true && "${valve_power_disconnected}" != true ]]; then

@@ -59,6 +59,14 @@ can take about 15 minutes. Package installation and the test suite may run
 quietly for several minutes, so allow the installer to finish unless it reports
 an error.
 
+When updating an existing installation, stop the GPIO-owning controller before
+rerunning the installer. The installer refuses to replace application files
+while the service is active, and starts it again after validation:
+
+```bash
+sudo systemctl stop open-sprinkler-v3.service
+```
+
 Install the two bootstrap packages needed to download the installer:
 
 ```bash

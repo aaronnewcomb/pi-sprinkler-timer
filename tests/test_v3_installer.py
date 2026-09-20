@@ -89,7 +89,11 @@ class InstallerTests(unittest.TestCase):
     def test_installer_refuses_to_replace_unknown_paths_or_dirty_source(self):
         script = INSTALLER.read_text(encoding="utf-8")
         self.assertIn("Source checkout has local changes", script)
-        self.assertIn("Stop open-sprinkler-v3.service before installing", script)
+        self.assertIn("The controller service is active", script)
+        self.assertIn(
+            "sudo systemctl stop open-sprinkler-v3.service",
+            script,
+        )
         self.assertIn("Refusing to replace non-Git path", script)
         self.assertIn("Refusing to replace existing non-symlink", script)
         self.assertNotIn("rm -", script)
