@@ -45,8 +45,8 @@ sudo ./scripts/install-v3.sh --mode http
 ```
 
 HTTP mode is intended only for temporary acceptance testing on a trusted LAN.
-See the [complete installation guide](V3_INSTALLATION.md) for private-LAN HTTPS,
-configuration, relay acceptance, and troubleshooting.
+See the [complete installation guide](https://github.com/aaronnewcomb/pi-sprinkler-timer/blob/v3.0.0/docs/V3_INSTALLATION.md)
+for private-LAN HTTPS, configuration, relay acceptance, and troubleshooting.
 
 ## Validation
 
