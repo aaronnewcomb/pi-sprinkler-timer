@@ -4,6 +4,7 @@ set -Eeuo pipefail
 readonly DEFAULT_REPOSITORY="https://github.com/aaronnewcomb/pi-sprinkler-timer.git"
 readonly DEFAULT_REF="v3.0.0"
 readonly SERVICE_NAME="pi-sprinkler.service"
+readonly CONTROLLER_HEALTH_TIMEOUT_SECONDS=90
 readonly APPLICATION_ROOT="/opt/pi-sprinkler"
 readonly SOURCE_DIRECTORY="${APPLICATION_ROOT}/source"
 readonly VIRTUAL_ENVIRONMENT="${APPLICATION_ROOT}/.venv"
@@ -250,18 +251,35 @@ retire_legacy_lighttpd_configuration() {
     done
 }
 
+fail_controller_health_check() {
+    local reason="$1"
+    systemctl --no-pager --full status "${SERVICE_NAME}" >&2 || true
+    systemctl show "${SERVICE_NAME}" \
+        --property=ActiveState,SubState,Result,NRestarts,ExecMainCode,ExecMainStatus \
+        --no-pager >&2 || true
+    journalctl -u "${SERVICE_NAME}" -n 80 --no-pager >&2 || true
+    curl --fail --show-error --max-time 2 \
+        http://127.0.0.1:8000/api/v1/health >/dev/null || true
+    systemctl disable --now "${SERVICE_NAME}" >/dev/null 2>&1 || true
+    fail "${reason}; ${SERVICE_NAME} was stopped and disabled"
+}
+
 wait_for_controller_health() {
-    local attempt
-    for attempt in {1..20}; do
+    local deadline=$((SECONDS + CONTROLLER_HEALTH_TIMEOUT_SECONDS))
+    while ((SECONDS < deadline)); do
         if curl --fail --silent --max-time 2 \
             http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1; then
             printf 'Controller health check passed.\n'
             return 0
         fi
+        if systemctl is-failed --quiet "${SERVICE_NAME}"; then
+            fail_controller_health_check \
+                "Controller service failed before its health endpoint became ready"
+        fi
         sleep 1
     done
-    journalctl -u pi-sprinkler.service -n 40 --no-pager >&2 || true
-    fail "Controller health endpoint did not become ready within 20 seconds"
+    fail_controller_health_check \
+        "Controller health endpoint did not become ready within ${CONTROLLER_HEALTH_TIMEOUT_SECONDS} seconds"
 }
 
 while (($#)); do

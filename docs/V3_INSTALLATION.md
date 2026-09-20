@@ -105,6 +105,14 @@ controller unit and lighttpd files under
 `pi-sprinkler.service`. The old application, configuration, database, service
 account, and certificate directories remain in place as a rollback copy.
 
+The controller readiness check allows up to 90 seconds for a loaded Pi Zero to
+finish application startup. If readiness still fails, the installer prints the
+service state, restart count, exit status, recent journal entries, and a final
+direct health request, then stops and disables the unhealthy controller.
+Preserve that output when troubleshooting. The line
+`Started ... service` only confirms that systemd launched the process; the
+health response confirms that the application finished starting.
+
 The browser cookie names also change, so the existing browser session ends and
 the saved API token must be used to sign in again. Home Assistant REST entity
 and action names already use `pi_sprinkler` and do not need to change.

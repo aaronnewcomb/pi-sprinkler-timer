@@ -112,6 +112,20 @@ class InstallerTests(unittest.TestCase):
         self.assertIn("retire_legacy_lighttpd_configuration", script)
         self.assertIn("/var/backups/pi-sprinkler/name-migration", script)
 
+    def test_installer_allows_slow_startup_and_reports_health_failures(self):
+        script = INSTALLER.read_text(encoding="utf-8")
+        self.assertIn("readonly CONTROLLER_HEALTH_TIMEOUT_SECONDS=90", script)
+        self.assertIn('systemctl is-failed --quiet "${SERVICE_NAME}"', script)
+        self.assertIn(
+            "--property=ActiveState,SubState,Result,NRestarts,ExecMainCode,ExecMainStatus",
+            script,
+        )
+        self.assertIn('journalctl -u "${SERVICE_NAME}" -n 80', script)
+        self.assertIn(
+            'fail "${reason}; ${SERVICE_NAME} was stopped and disabled"', script
+        )
+        self.assertNotIn("within 20 seconds", script)
+
 
 if __name__ == "__main__":
     unittest.main()
