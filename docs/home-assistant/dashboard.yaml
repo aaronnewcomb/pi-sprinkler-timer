@@ -1,0 +1,51 @@
+# Paste this into a Home Assistant dashboard Manual card. Rename station rows
+# to match the controller and remove any unused stations.
+
+type: entities
+title: Pi Sprinkler Timer
+show_header_toggle: false
+state_color: true
+entities:
+  - entity: sensor.pi_sprinkler_timer_active_station
+    name: Active station
+    icon: mdi:sprinkler
+
+  - entity: sensor.pi_sprinkler_timer_weather
+    name: Weather
+    icon: mdi:weather-partly-rainy
+
+  - entity: input_number.pi_sprinkler_duration_minutes
+    name: Watering duration
+
+  - type: section
+    label: Stations
+
+  - entity: switch.pi_sprinkler_station_1
+    name: Station 1
+
+  - entity: switch.pi_sprinkler_station_2
+    name: Station 2
+
+  - entity: switch.pi_sprinkler_station_3
+    name: Station 3
+
+  - entity: switch.pi_sprinkler_station_4
+    name: Station 4
+
+  - entity: switch.pi_sprinkler_station_5
+    name: Station 5
+
+  - entity: switch.pi_sprinkler_station_6
+    name: Station 6
+
+  - entity: switch.pi_sprinkler_station_7
+    name: Station 7
+
+  - entity: switch.pi_sprinkler_station_8
+    name: Station 8
+
+  - type: section
+    label: Controls
+
+  - entity: button.pi_sprinkler_stop_all
+    name: Stop all watering

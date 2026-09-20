@@ -99,3 +99,29 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn("pi_sprinkler_stop_all", configuration)
         self.assertNotIn("OPEN_SPRINKLER_HOST", configuration)
         self.assertNotIn("open_sprinkler_", configuration)
+
+    def test_home_assistant_station_entities_are_state_aware_and_bounded(self):
+        entities = (
+            ROOT / "docs" / "home-assistant" / "station-entities.yaml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("pi_sprinkler_duration_minutes", entities)
+        self.assertIn("min: 1", entities)
+        self.assertIn("max: 120", entities)
+        self.assertEqual(entities.count("unique_id: pi_sprinkler_station_"), 8)
+        self.assertEqual(entities.count("pi_sprinkler_start_station"), 8)
+        self.assertEqual(entities.count("pi_sprinkler_stop_station"), 8)
+        self.assertIn("unique_id: pi_sprinkler_stop_all", entities)
+        self.assertIn("action: rest_command.pi_sprinkler_stop_all", entities)
+        self.assertNotIn("open_sprinkler_", entities)
+
+    def test_home_assistant_dashboard_disables_unsafe_header_toggle(self):
+        dashboard = (
+            ROOT / "docs" / "home-assistant" / "dashboard.yaml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("title: Pi Sprinkler Timer", dashboard)
+        self.assertIn("show_header_toggle: false", dashboard)
+        self.assertIn("input_number.pi_sprinkler_duration_minutes", dashboard)
+        self.assertEqual(dashboard.count("switch.pi_sprinkler_station_"), 8)
+        self.assertIn("button.pi_sprinkler_stop_all", dashboard)

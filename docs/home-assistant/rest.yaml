@@ -1,6 +1,7 @@
 # Merge these sections into Home Assistant configuration.yaml.
 # Store the complete Authorization value in secrets.yaml as:
 # pi_sprinkler_authorization: Bearer YOUR_GENERATED_TOKEN
+# Then merge station-entities.yaml and add dashboard.yaml as a Manual card.
 
 rest:
   - resource: https://PI_SPRINKLER_HOST/api/v1/status

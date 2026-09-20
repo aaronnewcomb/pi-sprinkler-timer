@@ -119,10 +119,41 @@ After installation:
 
 ## Home Assistant
 
-A starter REST configuration is provided in
-[docs/home-assistant/rest.yaml](docs/home-assistant/rest.yaml). Store the full
-Bearer authorization value in Home Assistant `secrets.yaml`; do not commit it
-or paste it into chat.
+A complete YAML starter is split into three copy-ready files:
+
+1. Merge [the REST sensors and commands](docs/home-assistant/rest.yaml) into
+   Home Assistant `configuration.yaml`. Replace `PI_SPRINKLER_HOST` with the
+   controller hostname or address and use the same HTTP or HTTPS scheme chosen
+   during installation.
+2. Store the complete authorization value in Home Assistant `secrets.yaml`:
+
+   ```yaml
+   pi_sprinkler_authorization: "Bearer YOUR_SAVED_TOKEN"
+   ```
+
+   Keep the real token out of source control and chat.
+   For HTTPS, Home Assistant must trust the private certificate authority used
+   by the controller. `verify_ssl: false` is available on REST sensors and
+   commands for temporary trusted-LAN acceptance only; retain certificate
+   verification for regular use.
+3. Merge [the station entities](docs/home-assistant/station-entities.yaml) into
+   `configuration.yaml`. Rename the generic stations to match the controller,
+   remove unused stations, and preserve each station's numeric ID. If
+   `input_number:` or `template:` already exists, merge their children rather
+   than creating duplicate top-level keys.
+4. Check the Home Assistant configuration and perform a full restart. Confirm
+   the REST sensors, station switches, duration helper, and Stop All button
+   appear under **Developer Tools → States**.
+5. Add a dashboard **Manual** card and paste
+   [the Entities card template](docs/home-assistant/dashboard.yaml). Adjust any
+   entity IDs that Home Assistant changed to avoid a naming collision.
+
+The duration helper applies to the next manual station start. Each station
+switch reflects the active station, starts a bounded run when enabled, and
+stops that station when disabled. The Entities card deliberately disables its
+header toggle because the controller permits only one active station. The Stop
+All button remains available as an unconditional safety action. Keep the
+helper's maximum at or below the controller's configured manual-run limit.
 
 The REST API is served under `/api/v1`. The web dashboard is one API client,
 so browser and Home Assistant actions use the same controller and safety rules.
@@ -179,6 +210,8 @@ weather automation, GPIO safety, web assets, deployment files, and installer.
 - [Version 3 installation and acceptance](docs/V3_INSTALLATION.md)
 - [Version 3 architecture and roadmap](docs/V3_ARCHITECTURE.md)
 - [Home Assistant REST starter](docs/home-assistant/rest.yaml)
+- [Home Assistant station entities](docs/home-assistant/station-entities.yaml)
+- [Home Assistant dashboard card](docs/home-assistant/dashboard.yaml)
 - [Legacy version 2 reference](docs/V2_INSTALLATION.md)
 
 ## Legacy version 2
