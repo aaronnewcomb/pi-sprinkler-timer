@@ -59,6 +59,25 @@ can take about 15 minutes. Package installation and the test suite may run
 quietly for several minutes, so allow the installer to finish unless it reports
 an error.
 
+An installer checkout cloned with `--branch v3.0.0 --single-branch` knows only
+that release tag. Before testing `develop/v3.1`, update the installer checkout
+itself so its migration and health-check logic also comes from the development
+branch:
+
+```bash
+cd ~/pi-sprinkler-installer
+git config --add remote.origin.fetch \
+  '+refs/heads/develop/v3.1:refs/remotes/origin/develop/v3.1'
+git fetch origin
+git switch --create develop/v3.1 --track origin/develop/v3.1
+git rev-parse --short HEAD
+```
+
+Confirm the final command reports the expected development checkpoint before
+running `./scripts/install-v3.sh --ref develop/v3.1`. The `--ref` option selects
+the application source installed under `/opt`; it does not update an older
+local copy of the installer script.
+
 When updating an installation that already uses the Pi Sprinkler service name,
 stop the GPIO-owning controller before rerunning the installer. The installer
 refuses to transfer relay ownership while a controller is active and starts the

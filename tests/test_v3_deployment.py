@@ -117,6 +117,10 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn("Never copy or share `rootCA-key.pem`", guide)
         self.assertIn("api.open-meteo.com", guide)
         self.assertIn("live\ncountdown", guide)
+        self.assertIn(
+            "+refs/heads/develop/v3.1:refs/remotes/origin/develop/v3.1", guide
+        )
+        self.assertIn("does\nnot update an older local installer script", guide)
 
     def test_home_assistant_uses_product_namespace(self):
         configuration = (

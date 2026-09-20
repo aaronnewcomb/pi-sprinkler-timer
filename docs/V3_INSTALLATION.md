@@ -77,9 +77,24 @@ Use `--no-start` only when deliberately staging the files while leaving the
 controller service disabled and stopped.
 
 Use `--ref develop/v3.1` only when deliberately testing development beyond the
-checkpoint. Run `./scripts/install-v3.sh --help` for all options. The detailed
-manual steps below remain the troubleshooting, audit, and relay-acceptance
-reference. On an installation that already uses the current name, stop
+checkpoint. If the installer checkout was cloned with
+`--branch v3.0.0 --single-branch`, fetch and switch the installer itself first:
+
+```bash
+cd ~/pi-sprinkler-installer
+git config --add remote.origin.fetch \
+  '+refs/heads/develop/v3.1:refs/remotes/origin/develop/v3.1'
+git fetch origin
+git switch --create develop/v3.1 --track origin/develop/v3.1
+git rev-parse --short HEAD
+```
+
+Confirm the expected development checkpoint before running the installer. The
+`--ref` option selects the application source installed under `/opt`; it does
+not update an older local installer script. Run `./scripts/install-v3.sh --help`
+for all options. The detailed manual steps below remain the troubleshooting,
+audit, and relay-acceptance reference. On an installation that already uses
+the current name, stop
 `pi-sprinkler.service` before rerunning the installer; it refuses to transfer
 GPIO ownership while a controller is active:
 
