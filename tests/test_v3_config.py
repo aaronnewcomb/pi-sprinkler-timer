@@ -16,7 +16,7 @@ class ConfigTests(unittest.TestCase):
         with (ROOT / "pyproject.toml").open("rb") as metadata_file:
             project_version = tomllib.load(metadata_file)["project"]["version"]
 
-        self.assertEqual(__version__, "3.0.0")
+        self.assertEqual(__version__, "3.1.0.dev0")
         self.assertEqual(project_version, __version__)
 
     def test_loads_named_stations_and_private_server_defaults(self):

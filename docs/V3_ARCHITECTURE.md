@@ -68,6 +68,8 @@ The current development branch implements:
 - `POST /api/v1/auth/logout`, clear the current browser session;
 - `GET|POST /api/v1/schedules`, list and create schedules;
 - `PUT|DELETE /api/v1/schedules/{id}`, replace or remove a schedule;
+- `GET|POST|DELETE /api/v1/schedule-test`, inspect, start, or safely stop a
+  selected-schedule test with a fixed 30-second station duration;
 - `GET|PUT|DELETE /api/v1/rain-delay`, inspect, set, or clear a delay;
 - `GET /api/v1/weather`, inspect current conditions, forecast, settings, and
   automatic hold state;
@@ -116,6 +118,20 @@ transactions and avoids concurrent INI rewrites. Schedule claims are atomic
 and limited to one run per local date. A bounded grace window avoids starting a
 morning program hours late after a long outage. Any unfinished station run is
 marked `interrupted` when the application initializes after a restart.
+
+Enabled schedules are validated as recurring weekly run windows using the sum
+of their station durations. Creation, editing, and enabling reject conflicts
+with another enabled schedule, including runs that cross midnight or the
+Sunday-to-Monday boundary. Adjacent windows may meet exactly. Disabled
+schedules may overlap while being drafted, but must be conflict-free before
+they can be enabled.
+
+Schedule tests are explicit manual operations and are not schedule claims.
+They preserve the selected schedule order and each schedule's station order,
+override every step to 30 seconds, record runs with source `schedule-test`, and
+do not change `last_started_local_date`. The scheduler serializes normal and
+test execution, and test cancellation de-energizes the active relay before the
+test task ends.
 
 Manual and automatic weather holds are persisted independently. The scheduler
 uses the later expiration as the effective hold, while the API reports both

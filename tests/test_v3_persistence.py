@@ -9,6 +9,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from open_sprinkler.persistence import (
     ScheduleNotFoundError,
+    ScheduleOverlapError,
     ScheduleStep,
     SQLiteRepository,
 )
@@ -56,6 +57,98 @@ class PersistenceTests(unittest.TestCase):
         self.repository.delete_schedule(schedule.id)
         with self.assertRaises(ScheduleNotFoundError):
             self.repository.get_schedule(schedule.id)
+
+    def test_enabled_schedules_cannot_overlap(self):
+        self.repository.create_schedule(
+            name="Early",
+            enabled=True,
+            start_time=time(6, 0),
+            days_of_week=(0,),
+            steps=(ScheduleStep(1, 30 * 60),),
+            now=self.now,
+        )
+
+        with self.assertRaisesRegex(ScheduleOverlapError, "overlaps.*Early"):
+            self.repository.create_schedule(
+                name="Too soon",
+                enabled=True,
+                start_time=time(6, 29),
+                days_of_week=(0,),
+                steps=(ScheduleStep(2, 10 * 60),),
+                now=self.now,
+            )
+
+        touching = self.repository.create_schedule(
+            name="Boundary",
+            enabled=True,
+            start_time=time(6, 30),
+            days_of_week=(0,),
+            steps=(ScheduleStep(2, 10 * 60),),
+            now=self.now,
+        )
+        self.assertEqual(touching.start_time, time(6, 30))
+
+    def test_overlap_detection_crosses_midnight_and_week_boundary(self):
+        self.repository.create_schedule(
+            name="Sunday night",
+            enabled=True,
+            start_time=time(23, 45),
+            days_of_week=(6,),
+            steps=(ScheduleStep(1, 30 * 60),),
+            now=self.now,
+        )
+
+        with self.assertRaisesRegex(ScheduleOverlapError, "Sunday night"):
+            self.repository.create_schedule(
+                name="Monday morning",
+                enabled=True,
+                start_time=time(0, 0),
+                days_of_week=(0,),
+                steps=(ScheduleStep(2, 30 * 60),),
+                now=self.now,
+            )
+
+    def test_disabled_overlap_is_allowed_but_cannot_be_enabled(self):
+        first = self.repository.create_schedule(
+            name="First",
+            enabled=True,
+            start_time=time(8, 0),
+            days_of_week=(2,),
+            steps=(ScheduleStep(1, 60 * 60),),
+            now=self.now,
+        )
+        second = self.repository.create_schedule(
+            name="Disabled overlap",
+            enabled=False,
+            start_time=time(8, 30),
+            days_of_week=(2,),
+            steps=(ScheduleStep(2, 15 * 60),),
+            now=self.now,
+        )
+
+        with self.assertRaises(ScheduleOverlapError):
+            self.repository.update_schedule(
+                second.id,
+                name=second.name,
+                enabled=True,
+                start_time=second.start_time,
+                days_of_week=second.days_of_week,
+                steps=second.steps,
+                now=self.now,
+            )
+        self.assertTrue(self.repository.get_schedule(first.id).enabled)
+        self.assertFalse(self.repository.get_schedule(second.id).enabled)
+
+    def test_schedule_cannot_overlap_itself_on_selected_days(self):
+        with self.assertRaisesRegex(ScheduleOverlapError, "overlaps itself"):
+            self.repository.create_schedule(
+                name="Too long",
+                enabled=True,
+                start_time=time(6, 0),
+                days_of_week=(0, 1),
+                steps=(ScheduleStep(1, 25 * 60 * 60),),
+                now=self.now,
+            )
 
     def test_rain_delay_round_trips_in_utc(self):
         until = self.now + timedelta(hours=12)

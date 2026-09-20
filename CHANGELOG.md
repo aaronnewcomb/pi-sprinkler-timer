@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.1.0, unreleased
+
+- Add a supervised schedule-test workflow that runs selected schedules in
+  displayed order and overrides every included station to 30 seconds.
+- Add persistent test progress, safe cancellation, and distinct
+  `schedule-test` run-history records.
+- Reject enabled schedule windows that overlap another enabled schedule or
+  overlap themselves across selected days, including week-boundary and
+  cross-midnight conflicts.
+- Continue allowing disabled conflicting schedules to be drafted, while
+  preventing them from being enabled until the conflict is resolved.
+
 ## 3.0.0, 2026-09-19
 
 Pi Sprinkler Timer 3.0 replaces the legacy CGI application with a local-first

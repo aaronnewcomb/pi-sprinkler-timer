@@ -82,7 +82,18 @@
               <p class="eyebrow">Automation</p>
               <h2 id="schedules-heading">Schedules</h2>
             </div>
-            <button id="add-schedule-button" class="button primary" type="button">+ New schedule</button>
+            <div class="button-row">
+              <button id="test-schedules-button" class="button secondary" type="button">Test schedules</button>
+              <button id="add-schedule-button" class="button primary" type="button">+ New schedule</button>
+            </div>
+          </div>
+          <div id="schedule-test-status" class="schedule-test-status" hidden>
+            <div>
+              <strong id="schedule-test-status-heading">Schedule test</strong>
+              <p id="schedule-test-status-detail" class="muted small"></p>
+              <progress id="schedule-test-progress" value="0" max="1"></progress>
+            </div>
+            <button id="stop-schedule-test-button" class="button danger compact" type="button">Stop test</button>
           </div>
           <div id="schedule-list" class="card-list"></div>
         </section>
@@ -100,7 +111,7 @@
       </main>
 
       <footer>
-        <span>Pi Sprinkler Timer 3.0</span>
+        <span>Pi Sprinkler Timer 3.1 development</span>
         <span>Local first. Valve safe.</span>
       </footer>
     </div>
@@ -281,6 +292,29 @@
         <div class="modal-actions">
           <button id="cancel-schedule-button" class="button ghost" type="button">Cancel</button>
           <button id="schedule-submit-button" class="button primary" type="submit">Create schedule</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="schedule-test-dialog" class="modal" aria-labelledby="schedule-test-heading">
+      <form id="schedule-test-form" class="modal-card">
+        <div class="modal-heading">
+          <div>
+            <p class="eyebrow">Relay acceptance</p>
+            <h2 id="schedule-test-heading">Test schedules</h2>
+          </div>
+          <button id="close-schedule-test-button" class="icon-button" type="button" aria-label="Close">×</button>
+        </div>
+        <p class="muted">Select schedules to run in the order shown. Every included station will run for 30 seconds, regardless of its saved duration.</p>
+        <p class="form-warning">This test activates the physical valves. Supervise the controller and use Stop Test if any unexpected station turns on.</p>
+        <fieldset>
+          <legend>Schedules to include</legend>
+          <div id="schedule-test-options" class="schedule-test-options"></div>
+        </fieldset>
+        <p id="schedule-test-error" class="form-error" role="alert"></p>
+        <div class="modal-actions">
+          <button id="cancel-schedule-test-button" class="button ghost" type="button">Cancel</button>
+          <button class="button primary" type="submit">Run 30-second test</button>
         </div>
       </form>
     </dialog>

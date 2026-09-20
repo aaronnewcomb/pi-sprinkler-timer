@@ -13,10 +13,17 @@ when their configured time expires.
 > **Current release:** Version 3.0.0. The proven `v2.0.0` release remains
 > available for legacy installations and rollback.
 
+The `develop/v3.1` branch contains unreleased 3.1 development work. Its
+schedule test runs selected schedules in order with a supervised 30-second run
+per station, and schedule create/edit validation prevents enabled run windows
+from overlapping.
+
 ## Features
 
 - Manual station control with a live remaining-time countdown
 - Multi-station schedules with editing and local-time execution
+- Supervised 30-second test runs for selected schedules
+- Schedule overlap prevention, including runs that cross midnight
 - Independent manual rain holds and automatic weather holds
 - Open-Meteo current conditions and precipitation forecasts
 - SQLite schedule, settings, and run-history storage
@@ -46,7 +53,7 @@ The automated installer explains each stage, installs system packages and the
 application, runs the test suite, creates the restricted service account,
 configures lighttpd, collects the API token, and enables and starts the
 controller. It installs the released `v3.0.0` tag by default; use
-`--ref develop/v3` only for deliberate development testing.
+`--ref develop/v3.1` only for deliberate development testing.
 On a first-generation, single-core Raspberry Pi Zero, the initial installation
 can take about 15 minutes. Package installation and the test suite may run
 quietly for several minutes, so allow the installer to finish unless it reports
@@ -117,8 +124,13 @@ After installation:
    only the intended relay turns on.
 4. Switch directly between stations and confirm the previous relay turns off.
 5. Create and edit a short schedule, then verify its run appears in history.
-6. Configure weather automation if desired.
-7. Review the service log. If any check fails, stop watering and disconnect
+   Overlapping enabled schedules are rejected; schedules that meet exactly at
+   an end/start boundary are allowed.
+6. Use **Test schedules** to select one or more schedules. Supervise the test
+   while each included station runs for 30 seconds in schedule order, and
+   confirm that **Stop test** immediately de-energizes the active relay.
+7. Configure weather automation if desired.
+8. Review the service log. If any check fails, stop watering and disconnect
    valve power before troubleshooting.
 
 ## Home Assistant

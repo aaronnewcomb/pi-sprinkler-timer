@@ -7,6 +7,7 @@ const state = {
   weather: null,
   controllerSettings: null,
   history: [],
+  scheduleTest: null,
   editingScheduleId: null,
   refreshTimer: null,
   countdownTimer: null,
@@ -53,6 +54,16 @@ const elements = {
   scheduleHeading: document.querySelector("#schedule-form-heading"),
   scheduleEyebrow: document.querySelector("#schedule-form-eyebrow"),
   scheduleSubmitButton: document.querySelector("#schedule-submit-button"),
+  testSchedulesButton: document.querySelector("#test-schedules-button"),
+  scheduleTestDialog: document.querySelector("#schedule-test-dialog"),
+  scheduleTestForm: document.querySelector("#schedule-test-form"),
+  scheduleTestOptions: document.querySelector("#schedule-test-options"),
+  scheduleTestError: document.querySelector("#schedule-test-error"),
+  scheduleTestStatus: document.querySelector("#schedule-test-status"),
+  scheduleTestStatusHeading: document.querySelector("#schedule-test-status-heading"),
+  scheduleTestStatusDetail: document.querySelector("#schedule-test-status-detail"),
+  scheduleTestProgress: document.querySelector("#schedule-test-progress"),
+  stopScheduleTestButton: document.querySelector("#stop-schedule-test-button"),
   toast: document.querySelector("#toast"),
 };
 
@@ -170,7 +181,9 @@ function renderStatus() {
   elements.activeUntilMetric.textContent = formatTime(status.active_until);
   elements.stopAllButton.hidden = !active;
   const stopAction = state.controllerSettings?.stop_action || "schedule";
-  elements.stopActionLabel.textContent = stopAction === "station"
+  elements.stopActionLabel.textContent = status.active_source === "schedule-test"
+    ? "Stop schedule test"
+    : stopAction === "station"
     ? "Stop current station"
     : stopAction === "day"
       ? "Stop watering for today"
@@ -329,11 +342,18 @@ function daySummary(days) {
   return days.map((day) => labels[day]).join(", ");
 }
 
+function durationSummary(seconds) {
+  if (seconds < 60) return `${seconds} sec`;
+  if (seconds % 60 === 0) return `${seconds / 60} min`;
+  return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
+}
+
 function renderSchedules() {
   elements.scheduleList.replaceChildren();
   elements.scheduleCountMetric.textContent = String(state.schedules.length);
   if (!state.schedules.length) {
     elements.scheduleList.append(element("div", "empty-state", "No schedules yet. Create one when you are ready."));
+    renderScheduleTestOptions();
     return;
   }
   for (const schedule of state.schedules) {
@@ -349,9 +369,11 @@ function renderSchedules() {
     const actions = element("div", "list-actions");
     const edit = element("button", "button ghost compact", "Edit");
     edit.type = "button";
+    edit.disabled = Boolean(state.scheduleTest?.running);
     edit.addEventListener("click", () => openScheduleDialog(schedule));
     const toggle = element("button", `button compact ${schedule.enabled ? "secondary" : "ghost"}`, schedule.enabled ? "Enabled" : "Paused");
     toggle.type = "button";
+    toggle.disabled = Boolean(state.scheduleTest?.running);
     toggle.addEventListener("click", async () => {
       try {
         await api(`/api/v1/schedules/${schedule.id}`, {
@@ -363,6 +385,7 @@ function renderSchedules() {
     });
     const remove = element("button", "button ghost compact", "Delete");
     remove.type = "button";
+    remove.disabled = Boolean(state.scheduleTest?.running);
     remove.addEventListener("click", async () => {
       if (!window.confirm(`Delete ${schedule.name}?`)) return;
       try {
@@ -375,6 +398,56 @@ function renderSchedules() {
     card.append(main, actions);
     elements.scheduleList.append(card);
   }
+  renderScheduleTestOptions();
+}
+
+function renderScheduleTestOptions() {
+  const selectedIds = new Set(
+    Array.from(elements.scheduleTestOptions.querySelectorAll("input:checked"), (input) => input.value),
+  );
+  elements.scheduleTestOptions.replaceChildren();
+  for (const schedule of state.schedules) {
+    const label = element("label", "schedule-test-option");
+    const selected = document.createElement("input");
+    selected.type = "checkbox";
+    selected.value = schedule.id;
+    selected.name = "schedule_id";
+    selected.checked = selectedIds.has(String(schedule.id));
+    const copy = document.createElement("span");
+    copy.append(
+      element("strong", "", schedule.name),
+      element("small", "muted", `${schedule.steps.length} stations · ${daySummary(schedule.days_of_week)}${schedule.enabled ? "" : " · Paused"}`),
+    );
+    label.append(selected, copy);
+    elements.scheduleTestOptions.append(label);
+  }
+}
+
+function renderScheduleTest() {
+  const test = state.scheduleTest;
+  const hasRun = Boolean(test?.schedule_ids?.length);
+  elements.scheduleTestStatus.hidden = !hasRun;
+  elements.testSchedulesButton.disabled = Boolean(test?.running) || !state.schedules.length;
+  if (!hasRun) return;
+
+  elements.scheduleTestProgress.max = Math.max(1, test.total_steps);
+  elements.scheduleTestProgress.value = test.completed_steps;
+  elements.stopScheduleTestButton.hidden = !test.running;
+  if (test.running) {
+    const schedule = state.schedules.find((item) => item.id === test.current_schedule_id);
+    const activeName = test.current_station_id ? stationName(test.current_station_id) : "Preparing first station";
+    elements.scheduleTestStatusHeading.textContent = `Testing ${schedule?.name || "selected schedules"}`;
+    elements.scheduleTestStatusDetail.textContent = `${activeName} · ${test.completed_steps} of ${test.total_steps} stations completed`;
+    return;
+  }
+  const labels = {
+    completed: "Schedule test completed",
+    stopped: "Schedule test stopped",
+    interrupted: "Schedule test interrupted",
+    failed: "Schedule test failed",
+  };
+  elements.scheduleTestStatusHeading.textContent = labels[test.outcome] || "Schedule test ready";
+  elements.scheduleTestStatusDetail.textContent = test.error || `${test.completed_steps} of ${test.total_steps} stations completed`;
 }
 
 function renderHistory() {
@@ -387,7 +460,7 @@ function renderHistory() {
     const row = element("article", "history-item");
     const copy = element("div");
     copy.append(element("h3", "", stationName(run.station_id)));
-    copy.append(element("p", "", `${formatDateTime(run.started_at)} · ${Math.round(run.duration_seconds / 60)} min · ${run.source}`));
+    copy.append(element("p", "", `${formatDateTime(run.started_at)} · ${durationSummary(run.duration_seconds)} · ${run.source}`));
     const outcome = element("span", `status-pill ${run.outcome === "completed" ? "online" : "neutral"}`, run.outcome || "Running");
     row.append(copy, outcome);
     elements.historyList.append(row);
@@ -427,6 +500,12 @@ async function refreshSchedules() {
   renderSchedules();
 }
 
+async function refreshScheduleTest() {
+  state.scheduleTest = await api("/api/v1/schedule-test");
+  renderScheduleTest();
+  renderSchedules();
+}
+
 async function refreshRainDelay() {
   state.rainDelay = await api("/api/v1/rain-delay");
   renderRainDelay();
@@ -460,12 +539,12 @@ async function refreshHistory() {
 async function refreshAll() {
   try {
     await refreshStatus();
-    await Promise.all([refreshSchedules(), refreshRainDelay(), refreshWeather(), refreshControllerSettings(), refreshHistory()]);
+    await Promise.all([refreshSchedules(), refreshRainDelay(), refreshWeather(), refreshControllerSettings(), refreshHistory(), refreshScheduleTest()]);
     renderScheduleStationOptions();
     clearInterval(state.refreshTimer);
     clearInterval(state.countdownTimer);
     state.refreshTimer = window.setInterval(() => {
-      Promise.all([refreshStatus(), refreshRainDelay(), refreshWeather()]).catch(() => setConnected(false));
+      Promise.all([refreshStatus(), refreshRainDelay(), refreshWeather(), refreshScheduleTest()]).catch(() => setConnected(false));
     }, 5000);
     state.countdownTimer = window.setInterval(updateCountdowns, 1000);
   } catch (error) {
@@ -508,7 +587,8 @@ elements.stopAllButton.addEventListener("click", async () => {
     await refreshStatus();
     await refreshRainDelay();
     await refreshHistory();
-    notify(result.action === "day" ? "Watering paused until tomorrow" : "Watering stopped");
+    await refreshScheduleTest();
+    notify(result.action === "day" ? "Watering paused until tomorrow" : result.action === "schedule-test" ? "Schedule test stopped" : "Watering stopped");
   } catch (error) { notify(error.message, true); }
 });
 
@@ -696,9 +776,54 @@ function openScheduleDialog(schedule = null) {
 
 document.querySelector("#add-schedule-button").addEventListener("click", () => openScheduleDialog());
 
+elements.testSchedulesButton.addEventListener("click", () => {
+  elements.scheduleTestForm.reset();
+  renderScheduleTestOptions();
+  elements.scheduleTestError.textContent = "";
+  if (!elements.scheduleTestDialog.open) elements.scheduleTestDialog.showModal();
+});
+
 document.querySelector("#close-schedule-button").addEventListener("click", () => elements.scheduleDialog.close());
 document.querySelector("#cancel-schedule-button").addEventListener("click", () => elements.scheduleDialog.close());
+document.querySelector("#close-schedule-test-button").addEventListener("click", () => elements.scheduleTestDialog.close());
+document.querySelector("#cancel-schedule-test-button").addEventListener("click", () => elements.scheduleTestDialog.close());
 document.querySelector("#refresh-button").addEventListener("click", () => refreshAll());
+
+elements.scheduleTestForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  elements.scheduleTestError.textContent = "";
+  const scheduleIds = new FormData(elements.scheduleTestForm).getAll("schedule_id").map(Number);
+  if (!scheduleIds.length) {
+    elements.scheduleTestError.textContent = "Select at least one schedule to test.";
+    return;
+  }
+  try {
+    state.scheduleTest = await api("/api/v1/schedule-test", {
+      method: "POST",
+      body: JSON.stringify({ schedule_ids: scheduleIds }),
+    });
+    elements.scheduleTestDialog.close();
+    await Promise.all([refreshStatus(), refreshScheduleTest()]);
+    notify("Schedule test started");
+  } catch (error) {
+    elements.scheduleTestError.textContent = error.message;
+  }
+});
+
+elements.stopScheduleTestButton.addEventListener("click", async () => {
+  elements.stopScheduleTestButton.disabled = true;
+  try {
+    state.scheduleTest = await api("/api/v1/schedule-test", { method: "DELETE" });
+    await Promise.all([refreshStatus(), refreshHistory()]);
+    renderScheduleTest();
+    renderSchedules();
+    notify("Schedule test stopped");
+  } catch (error) {
+    notify(error.message, true);
+  } finally {
+    elements.stopScheduleTestButton.disabled = false;
+  }
+});
 
 elements.scheduleForm.addEventListener("submit", async (event) => {
   event.preventDefault();

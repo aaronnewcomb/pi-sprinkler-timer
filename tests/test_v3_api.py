@@ -15,6 +15,7 @@ try:
     from open_sprinkler.controller import SprinklerController, StationDefinition
     from open_sprinkler.controller_settings import ControllerSettingsManager
     from open_sprinkler.persistence import SQLiteRepository
+    from open_sprinkler.scheduler import ScheduleRunner
     from open_sprinkler.weather import (
         DailyForecast,
         HourlyPrecipitation,
@@ -95,6 +96,31 @@ def make_persistent_app():
         run_recorder=repository,
     )
     return create_app(controller, "test-token", repository=repository)
+
+
+def make_scheduler_app():
+    repository = SQLiteRepository.open(":memory:")
+    controller = SprinklerController(
+        [
+            StationDefinition(id=1, name="Front", pin=5),
+            StationDefinition(id=2, name="Back", pin=6),
+        ],
+        FakeRelayBank(),
+        max_duration_seconds=60,
+        run_recorder=repository,
+    )
+    scheduler = ScheduleRunner(
+        repository,
+        controller,
+        timezone="America/Los_Angeles",
+        poll_seconds=3600,
+    )
+    return create_app(
+        controller,
+        "test-token",
+        repository=repository,
+        scheduler=scheduler,
+    )
 
 
 def make_browser_app():
@@ -260,6 +286,76 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(response.status_code, 204)
 
         asyncio.run(request_scenario(scenario, make_persistent_app))
+
+    def test_schedule_crud_rejects_overlapping_enabled_windows(self):
+        async def scenario(client):
+            headers = {"Authorization": "Bearer test-token"}
+            first = {
+                "name": "Morning",
+                "enabled": True,
+                "start_time": "06:30",
+                "days_of_week": [0],
+                "steps": [{"station_id": 1, "duration_seconds": 60}],
+            }
+            response = await client.post(
+                "/api/v1/schedules", headers=headers, json=first
+            )
+            self.assertEqual(response.status_code, 201)
+
+            overlapping = {
+                **first,
+                "name": "Conflict",
+                "start_time": "06:30:30",
+                "steps": [{"station_id": 2, "duration_seconds": 30}],
+            }
+            response = await client.post(
+                "/api/v1/schedules", headers=headers, json=overlapping
+            )
+            self.assertEqual(response.status_code, 422)
+            self.assertIn("overlaps enabled schedule 'Morning'", response.text)
+
+        asyncio.run(request_scenario(scenario, make_persistent_app))
+
+    def test_schedule_test_can_be_started_observed_and_stopped(self):
+        async def scenario(client):
+            headers = {"Authorization": "Bearer test-token"}
+            schedule = {
+                "name": "Morning",
+                "enabled": True,
+                "start_time": "06:30",
+                "days_of_week": [0],
+                "steps": [
+                    {"station_id": 1, "duration_seconds": 30},
+                    {"station_id": 2, "duration_seconds": 30},
+                ],
+            }
+            created = await client.post(
+                "/api/v1/schedules", headers=headers, json=schedule
+            )
+            schedule_id = created.json()["id"]
+
+            response = await client.post(
+                "/api/v1/schedule-test",
+                headers=headers,
+                json={"schedule_ids": [schedule_id]},
+            )
+            self.assertEqual(response.status_code, 202)
+            self.assertTrue(response.json()["running"])
+            self.assertEqual(response.json()["step_duration_seconds"], 30)
+            self.assertEqual(response.json()["total_steps"], 2)
+
+            response = await client.get("/api/v1/schedule-test", headers=headers)
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.json()["running"])
+
+            response = await client.delete(
+                "/api/v1/schedule-test", headers=headers
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(response.json()["running"])
+            self.assertEqual(response.json()["outcome"], "stopped")
+
+        asyncio.run(request_scenario(scenario, make_scheduler_app))
 
     def test_rain_delay_and_run_history_endpoints(self):
         async def scenario(client):

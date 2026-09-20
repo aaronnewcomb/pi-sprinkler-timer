@@ -1,3 +1,3 @@
-"""Pi Sprinkler Timer 3.0 controller and API."""
+"""Pi Sprinkler Timer controller and API."""
 
-__version__ = "3.0.0"
+__version__ = "3.1.0.dev0"

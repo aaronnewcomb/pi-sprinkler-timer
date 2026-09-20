@@ -27,6 +27,12 @@ class FakeController:
     async def wait_for_run(self, _run_id):
         return self.outcomes.pop(0) if self.outcomes else "completed"
 
+    async def status(self):
+        return SimpleNamespace(active_station_id=None, active_source=None)
+
+    async def stop_all(self):
+        return await self.status()
+
 
 class SchedulerTests(unittest.TestCase):
     def setUp(self):
@@ -142,3 +148,61 @@ class SchedulerTests(unittest.TestCase):
 
         self.assertEqual(triggered, [schedule.id])
         self.assertEqual(len(controller.calls), 2)
+
+    def test_selected_schedules_run_in_request_order_at_thirty_seconds(self):
+        first = self.create_schedule()
+        second = self.repository.create_schedule(
+            name="Evening",
+            enabled=False,
+            start_time=time(18, 0),
+            days_of_week=(1,),
+            steps=(ScheduleStep(2, 600),),
+        )
+        controller = FakeController(["completed", "completed", "completed"])
+        runner = ScheduleRunner(
+            self.repository,
+            controller,
+            timezone="America/Los_Angeles",
+        )
+
+        async def scenario():
+            started = await runner.start_test([second.id, first.id])
+            self.assertTrue(started.running)
+            while runner.test_status.running:
+                await asyncio.sleep(0)
+
+        asyncio.run(scenario())
+
+        self.assertEqual(
+            [(call[0], call[1], call[2], call[3]) for call in controller.calls],
+            [
+                (2, 30, "schedule-test", second.id),
+                (1, 30, "schedule-test", first.id),
+                (2, 30, "schedule-test", first.id),
+            ],
+        )
+        self.assertEqual(runner.test_status.completed_steps, 3)
+        self.assertEqual(runner.test_status.total_steps, 3)
+        self.assertEqual(runner.test_status.outcome, "completed")
+        self.assertIsNone(
+            self.repository.get_schedule(first.id).last_started_local_date
+        )
+
+    def test_stopped_schedule_test_does_not_continue(self):
+        schedule = self.create_schedule()
+        controller = FakeController(["stopped"])
+        runner = ScheduleRunner(
+            self.repository,
+            controller,
+            timezone="America/Los_Angeles",
+        )
+
+        async def scenario():
+            await runner.start_test([schedule.id])
+            while runner.test_status.running:
+                await asyncio.sleep(0)
+
+        asyncio.run(scenario())
+
+        self.assertEqual(len(controller.calls), 1)
+        self.assertEqual(runner.test_status.outcome, "stopped")

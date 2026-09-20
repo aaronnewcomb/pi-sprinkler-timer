@@ -72,6 +72,19 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn('id="weather-form"', page)
         self.assertIn("Manual and weather holds", script)
 
+    def test_dashboard_exposes_supervised_schedule_test_controls(self):
+        web_root = ROOT / "src" / "open_sprinkler" / "web"
+        page = (web_root / "index.html").read_text(encoding="utf-8")
+        script = (web_root / "assets" / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="test-schedules-button"', page)
+        self.assertIn('id="schedule-test-dialog"', page)
+        self.assertIn("Every included station will run for 30 seconds", page)
+        self.assertIn("This test activates the physical valves", page)
+        self.assertIn('api("/api/v1/schedule-test"', script)
+        self.assertIn('method: "DELETE"', script)
+        self.assertIn('status.active_source === "schedule-test"', script)
+
     def test_installation_guide_has_complete_tls_paths(self):
         guide = (ROOT / "docs" / "V3_INSTALLATION.md").read_text(encoding="utf-8")
 
