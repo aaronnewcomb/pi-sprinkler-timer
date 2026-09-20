@@ -1,4 +1,4 @@
-# Pi Sprinkler Timer 3.0 test installation
+# Pi Sprinkler Timer version 3 installation and acceptance
 
 This procedure prepares a separate Raspberry Pi 4 for 3.0 acceptance. Keep the
 working 2.0 controller and its boot media unchanged. Version 3.0 must pass the
@@ -27,7 +27,7 @@ sudo apt install -y git ca-certificates
 Then bootstrap the installer from the development branch:
 
 ```bash
-git clone --branch develop/v3 --single-branch \
+git clone --branch develop/v3.1 --single-branch \
     https://github.com/aaronnewcomb/pi-sprinkler-timer.git \
     pi-sprinkler-installer
 cd pi-sprinkler-installer
@@ -61,7 +61,7 @@ empty or incomplete token file is safely replaced by a new prompt.
 
 By default the installer explains the relay-safety requirement, asks you to
 confirm that the 24 VAC valve transformer is disconnected, then enables and
-starts both lighttpd and `open-sprinkler-v3.service`. It verifies the service
+starts both lighttpd and `pi-sprinkler.service`. It verifies the service
 state and application health endpoint before reporting completion. Keep valve
 power disconnected until relay acceptance passes.
 
@@ -79,12 +79,35 @@ controller service disabled and stopped.
 Use `--ref develop/v3.1` only when deliberately testing development beyond the
 checkpoint. Run `./scripts/install-v3.sh --help` for all options. The detailed
 manual steps below remain the troubleshooting, audit, and relay-acceptance
-reference. On an existing installation, stop `open-sprinkler-v3.service`
-before rerunning the installer; it refuses to modify a live controller:
+reference. On an installation that already uses the current name, stop
+`pi-sprinkler.service` before rerunning the installer; it refuses to transfer
+GPIO ownership while a controller is active:
+
+```bash
+sudo systemctl stop pi-sprinkler.service
+```
+
+### Name migration from version 3.0
+
+The v3.0 release used `open-sprinkler-v3.service` and matching filesystem
+identifiers internally. Stop that old unit before the first v3.1 update:
 
 ```bash
 sudo systemctl stop open-sprinkler-v3.service
 ```
+
+The automated installer copies the configuration, API token, SQLite database,
+TLS certificate, and mkcert certificate authority into the new `pi-sprinkler`
+paths. It uses SQLite's backup API so committed data, including WAL-backed
+changes, is copied consistently. It then disables and archives the obsolete
+controller unit and lighttpd files under
+`/var/backups/pi-sprinkler/name-migration/` before starting
+`pi-sprinkler.service`. The old application, configuration, database, service
+account, and certificate directories remain in place as a rollback copy.
+
+The browser cookie names also change, so the existing browser session ends and
+the saved API token must be used to sign in again. Home Assistant REST entity
+and action names already use `pi_sprinkler` and do not need to change.
 
 ## 1. Inspect the fresh system
 
@@ -115,18 +138,18 @@ After reconnecting, confirm no old controller owns the relays or legacy port:
 ```bash
 systemctl is-active pigpiod.service || true
 sudo ss -ltnp | grep ':5555' || echo "Legacy port 5555 is free"
-pgrep -af 'sprinkler.py|open-sprinkler' || true
+pgrep -af 'sprinkler.py|pi-sprinkler' || true
 ```
 
 ## 3. Install the application in an isolated environment
 
 ```bash
-sudo install -d -m 0755 -o root -g root /opt/open-sprinkler
-sudo git clone --branch develop/v3 --single-branch \
+sudo install -d -m 0755 -o root -g root /opt/pi-sprinkler
+sudo git clone --branch develop/v3.1 --single-branch \
     https://github.com/aaronnewcomb/pi-sprinkler-timer.git \
-    /opt/open-sprinkler/source
-sudo python3 -m venv --system-site-packages /opt/open-sprinkler/.venv
-sudo /opt/open-sprinkler/.venv/bin/pip install /opt/open-sprinkler/source
+    /opt/pi-sprinkler/source
+sudo python3 -m venv --system-site-packages /opt/pi-sprinkler/.venv
+sudo /opt/pi-sprinkler/.venv/bin/pip install /opt/pi-sprinkler/source
 ```
 
 The virtual environment isolates FastAPI and Uvicorn while retaining access to
@@ -135,22 +158,22 @@ the GPIO Zero and lgpio packages installed by APT.
 Run the complete suite before creating the service account:
 
 ```bash
-cd /opt/open-sprinkler/source
-sudo /opt/open-sprinkler/.venv/bin/pip install pytest httpx
-sudo /opt/open-sprinkler/.venv/bin/pytest -q
+cd /opt/pi-sprinkler/source
+sudo /opt/pi-sprinkler/.venv/bin/pip install pytest httpx
+sudo /opt/pi-sprinkler/.venv/bin/pytest -q
 ```
 
 ## 4. Create the service account and configuration
 
 ```bash
-sudo useradd --system --user-group --home-dir /var/lib/open-sprinkler \
-    --shell /usr/sbin/nologin open-sprinkler
-sudo usermod --append --groups gpio open-sprinkler
-sudo install -d -m 0750 -o root -g open-sprinkler /etc/open-sprinkler
-sudo install -m 0640 -o root -g open-sprinkler \
-    /opt/open-sprinkler/source/open-sprinkler-v3.ini.example \
-    /etc/open-sprinkler/open-sprinkler.ini
-sudoedit /etc/open-sprinkler/open-sprinkler.ini
+sudo useradd --system --user-group --home-dir /var/lib/pi-sprinkler \
+    --shell /usr/sbin/nologin pi-sprinkler
+sudo usermod --append --groups gpio pi-sprinkler
+sudo install -d -m 0750 -o root -g pi-sprinkler /etc/pi-sprinkler
+sudo install -m 0640 -o root -g pi-sprinkler \
+    /opt/pi-sprinkler/source/pi-sprinkler.ini.example \
+    /etc/pi-sprinkler/pi-sprinkler.ini
+sudoedit /etc/pi-sprinkler/pi-sprinkler.ini
 ```
 
 Keep the server bound to `127.0.0.1`. Verify the BCM GPIO numbers, station
@@ -167,10 +190,10 @@ generate and save a unique random password containing at least 32 characters;
 IP. Do not paste the value into chat, shell arguments, or the repository:
 
 ```bash
-sudo install -m 0640 -o root -g open-sprinkler /dev/null \
-    /etc/open-sprinkler/api-token
+sudo install -m 0640 -o root -g pi-sprinkler /dev/null \
+    /etc/pi-sprinkler/api-token
 sudo systemd-ask-password --timeout=0 "Paste the saved API token" | \
-    sudo tee /etc/open-sprinkler/api-token >/dev/null
+    sudo tee /etc/pi-sprinkler/api-token >/dev/null
 ```
 
 The same saved token can be stored in Home Assistant `secrets.yaml`. The
@@ -181,12 +204,12 @@ and repeat these token-creation commands later.
 ## 5. Install the service without starting it
 
 ```bash
-sudo install -m 0644 /opt/open-sprinkler/source/systemd/open-sprinkler-v3.service \
-    /etc/systemd/system/open-sprinkler-v3.service
+sudo install -m 0644 /opt/pi-sprinkler/source/systemd/pi-sprinkler.service \
+    /etc/systemd/system/pi-sprinkler.service
 sudo systemctl daemon-reload
-sudo systemd-analyze verify /etc/systemd/system/open-sprinkler-v3.service
-systemctl is-enabled open-sprinkler-v3.service
-systemctl is-active open-sprinkler-v3.service
+sudo systemd-analyze verify /etc/systemd/system/pi-sprinkler.service
+systemctl is-enabled pi-sprinkler.service
+systemctl is-active pi-sprinkler.service
 ```
 
 It must remain disabled and inactive until valve power is disconnected.
@@ -196,10 +219,10 @@ It must remain disabled and inactive until valve power is disconnected.
 Install the reverse proxy configuration:
 
 ```bash
-sudo install -m 0644 /opt/open-sprinkler/source/lighttpd/99-open-sprinkler-v3.conf \
-    /etc/lighttpd/conf-available/99-open-sprinkler-v3.conf
-sudo ln -s ../conf-available/99-open-sprinkler-v3.conf \
-    /etc/lighttpd/conf-enabled/99-open-sprinkler-v3.conf
+sudo install -m 0644 /opt/pi-sprinkler/source/lighttpd/99-pi-sprinkler.conf \
+    /etc/lighttpd/conf-available/99-pi-sprinkler.conf
+sudo ln -s ../conf-available/99-pi-sprinkler.conf \
+    /etc/lighttpd/conf-enabled/99-pi-sprinkler.conf
 ```
 
 Choose one of the following browser-access paths before starting the service.
@@ -207,7 +230,7 @@ Choose one of the following browser-access paths before starting the service.
 ### Option A: temporary HTTP for isolated hardware acceptance
 
 For an isolated test on a trusted LAN, edit
-`/etc/open-sprinkler/open-sprinkler.ini` and temporarily set:
+`/etc/pi-sprinkler/pi-sprinkler.ini` and temporarily set:
 
 ```ini
 secure_cookies = false
@@ -223,46 +246,46 @@ before regular use.
 
 The commands below use `mkcert` to create a private certificate authority and
 a server certificate. Replace the example name and address with the stable
-hostname and IP address of this Pi. If `hostname` prints `opensprinkler`, the
-mDNS name is normally `opensprinkler.local`.
+hostname and IP address of this Pi. If `hostname` prints `pi-sprinkler`, the
+mDNS name is normally `pi-sprinkler.local`.
 
 ```bash
 hostname
 hostname -I
 
-sprinkler_name="opensprinkler.local"
+sprinkler_name="pi-sprinkler.local"
 sprinkler_ip="192.168.0.50"
 
 sudo apt install mkcert libnss3-tools lighttpd-mod-openssl
 mkcert -install
 
 sudo install -d -m 0700 -o root -g root \
-    /etc/lighttpd/certs/open-sprinkler
+    /etc/lighttpd/certs/pi-sprinkler
 sudo env CAROOT="$(mkcert -CAROOT)" mkcert \
-    -cert-file /etc/lighttpd/certs/open-sprinkler/fullchain.pem \
-    -key-file /etc/lighttpd/certs/open-sprinkler/privkey.pem \
+    -cert-file /etc/lighttpd/certs/pi-sprinkler/fullchain.pem \
+    -key-file /etc/lighttpd/certs/pi-sprinkler/privkey.pem \
     "$sprinkler_name" "$sprinkler_ip"
-sudo chmod 0644 /etc/lighttpd/certs/open-sprinkler/fullchain.pem
-sudo chmod 0600 /etc/lighttpd/certs/open-sprinkler/privkey.pem
+sudo chmod 0644 /etc/lighttpd/certs/pi-sprinkler/fullchain.pem
+sudo chmod 0600 /etc/lighttpd/certs/pi-sprinkler/privkey.pem
 ```
 
 Inspect the certificate without displaying the private key:
 
 ```bash
 sudo openssl x509 \
-    -in /etc/lighttpd/certs/open-sprinkler/fullchain.pem \
+    -in /etc/lighttpd/certs/pi-sprinkler/fullchain.pem \
     -noout -subject -issuer -dates -ext subjectAltName
 ```
 
 Install the TLS configuration:
 
 ```bash
-sudo test ! -e /etc/lighttpd/conf-available/98-open-sprinkler-tls.conf
+sudo test ! -e /etc/lighttpd/conf-available/98-pi-sprinkler-tls.conf
 sudo install -m 0644 \
-    /opt/open-sprinkler/source/lighttpd/98-open-sprinkler-tls.conf.example \
-    /etc/lighttpd/conf-available/98-open-sprinkler-tls.conf
-sudo ln -s ../conf-available/98-open-sprinkler-tls.conf \
-    /etc/lighttpd/conf-enabled/98-open-sprinkler-tls.conf
+    /opt/pi-sprinkler/source/lighttpd/98-pi-sprinkler-tls.conf.example \
+    /etc/lighttpd/conf-available/98-pi-sprinkler-tls.conf
+sudo ln -s ../conf-available/98-pi-sprinkler-tls.conf \
+    /etc/lighttpd/conf-enabled/98-pi-sprinkler-tls.conf
 ```
 
 `mkcert -install` trusts the new certificate authority on the Pi only. Run
@@ -305,9 +328,9 @@ Disconnect the 24 VAC valve transformer. Start the application without
 enabling it at boot:
 
 ```bash
-sudo systemctl start open-sprinkler-v3.service
-systemctl status open-sprinkler-v3.service --no-pager -l
-journalctl -u open-sprinkler-v3.service -n 80 --no-pager
+sudo systemctl start pi-sprinkler.service
+systemctl status pi-sprinkler.service --no-pager -l
+journalctl -u pi-sprinkler.service -n 80 --no-pager
 sudo ss -ltnp | grep ':8000'
 curl --fail --show-error http://127.0.0.1/
 ```
@@ -323,7 +346,7 @@ schedule, and confirm its run appears in history.
 Open **Settings**, verify the station names, BCM GPIO pins, timezone, maximum
 run time, and Stop-button policy, then save. Changes other than GPIO pins apply
 immediately. If the page reports that a GPIO restart is required, disconnect
-valve power, restart `open-sprinkler-v3.service`, verify all relays remain off,
+valve power, restart `pi-sprinkler.service`, verify all relays remain off,
 and reconnect valve power only after testing each station. Create a schedule,
 use **Edit** to change it, and confirm the updated values survive a page reload.
 
@@ -346,15 +369,15 @@ curl --fail --show-error "https://${sprinkler_ip}/api/v1/health"
 Stop the service and confirm every relay remains off:
 
 ```bash
-sudo systemctl stop open-sprinkler-v3.service
-systemctl is-active open-sprinkler-v3.service
+sudo systemctl stop pi-sprinkler.service
+systemctl is-active pi-sprinkler.service
 sudo ss -ltnp | grep ':8000' || echo "API port 8000 released"
-journalctl -u open-sprinkler-v3.service -n 80 --no-pager
+journalctl -u pi-sprinkler.service -n 80 --no-pager
 ```
 
 Only after all checks pass should the service be enabled and valve power be
 reconnected:
 
 ```bash
-sudo systemctl enable --now open-sprinkler-v3.service
+sudo systemctl enable --now pi-sprinkler.service
 ```

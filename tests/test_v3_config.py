@@ -7,8 +7,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from open_sprinkler import __version__
-from open_sprinkler.config import load_settings, read_api_token
+from pi_sprinkler import __version__
+from pi_sprinkler.config import load_settings, read_api_token
 
 
 class ConfigTests(unittest.TestCase):
@@ -21,7 +21,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_loads_named_stations_and_private_server_defaults(self):
         with tempfile.TemporaryDirectory() as directory:
-            config_path = Path(directory) / "open-sprinkler.ini"
+            config_path = Path(directory) / "pi-sprinkler.ini"
             config_path.write_text(
                 "[Station GPIOs]\npins = 5, 6\nnames = Front, Back\n",
                 encoding="utf-8",
@@ -44,12 +44,12 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(settings.weather_poll_seconds, 900)
         self.assertEqual(
             settings.database_path,
-            Path("/var/lib/open-sprinkler/open-sprinkler.db"),
+            Path("/var/lib/pi-sprinkler/pi-sprinkler.db"),
         )
 
     def test_station_names_must_match_pin_count(self):
         with tempfile.TemporaryDirectory() as directory:
-            config_path = Path(directory) / "open-sprinkler.ini"
+            config_path = Path(directory) / "pi-sprinkler.ini"
             config_path.write_text(
                 "[Station GPIOs]\npins = 5, 6\nnames = Front\n",
                 encoding="utf-8",

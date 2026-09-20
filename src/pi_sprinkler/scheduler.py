@@ -86,7 +86,7 @@ class ScheduleRunner:
         if self.is_running:
             return
         self._task = asyncio.create_task(
-            self._run_loop(), name="open-sprinkler-scheduler"
+            self._run_loop(), name="pi-sprinkler-scheduler"
         )
 
     async def close(self) -> None:
@@ -153,7 +153,7 @@ class ScheduleRunner:
         )
         self._test_stop_requested = False
         self._test_task = asyncio.create_task(
-            self._run_test(schedules), name="open-sprinkler-schedule-test"
+            self._run_test(schedules), name="pi-sprinkler-schedule-test"
         )
         return self._test_status
 

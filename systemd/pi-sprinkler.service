@@ -1,23 +1,23 @@
 [Unit]
-Description=Pi Sprinkler Timer 3.0 controller and web API
+Description=Pi Sprinkler Timer controller and web API
 After=local-fs.target network.target
 
 [Service]
 Type=simple
-User=open-sprinkler
-Group=open-sprinkler
+User=pi-sprinkler
+Group=pi-sprinkler
 SupplementaryGroups=gpio
-RuntimeDirectory=open-sprinkler
+RuntimeDirectory=pi-sprinkler
 RuntimeDirectoryMode=0750
-StateDirectory=open-sprinkler
+StateDirectory=pi-sprinkler
 StateDirectoryMode=0750
-WorkingDirectory=/run/open-sprinkler
+WorkingDirectory=/run/pi-sprinkler
 UMask=0027
 Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONDONTWRITEBYTECODE=1
-ExecStartPre=/usr/bin/test -r /etc/open-sprinkler/open-sprinkler.ini
-ExecStartPre=/usr/bin/test -r /etc/open-sprinkler/api-token
-ExecStart=/opt/open-sprinkler/.venv/bin/open-sprinkler-v3 --config /etc/open-sprinkler/open-sprinkler.ini --api-token-file /etc/open-sprinkler/api-token
+ExecStartPre=/usr/bin/test -r /etc/pi-sprinkler/pi-sprinkler.ini
+ExecStartPre=/usr/bin/test -r /etc/pi-sprinkler/api-token
+ExecStart=/opt/pi-sprinkler/.venv/bin/pi-sprinkler --config /etc/pi-sprinkler/pi-sprinkler.ini --api-token-file /etc/pi-sprinkler/api-token
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=20s

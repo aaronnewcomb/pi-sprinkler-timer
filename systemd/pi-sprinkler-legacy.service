@@ -7,9 +7,9 @@ Type=simple
 User=www-data
 Group=www-data
 SupplementaryGroups=gpio
-RuntimeDirectory=open-sprinkler
+RuntimeDirectory=pi-sprinkler
 RuntimeDirectoryMode=0750
-WorkingDirectory=/run/open-sprinkler
+WorkingDirectory=/run/pi-sprinkler
 Environment=PYTHONUNBUFFERED=1
 ExecStartPre=/usr/bin/test -r /usr/lib/cgi-bin/sprinkler.config
 ExecStart=/usr/bin/python3 /usr/lib/cgi-bin/sprinkler.py

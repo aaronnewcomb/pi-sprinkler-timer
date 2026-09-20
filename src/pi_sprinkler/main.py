@@ -1,4 +1,4 @@
-"""Command-line entry point for the 3.0 API service."""
+"""Command-line entry point for Pi Sprinkler Timer."""
 
 from __future__ import annotations
 
@@ -18,16 +18,16 @@ from .weather import WeatherAutomation
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run Pi Sprinkler Timer 3.0")
+    parser = argparse.ArgumentParser(description="Run Pi Sprinkler Timer")
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("/etc/open-sprinkler/open-sprinkler.ini"),
+        default=Path("/etc/pi-sprinkler/pi-sprinkler.ini"),
     )
     parser.add_argument(
         "--api-token-file",
         type=Path,
-        default=Path("/etc/open-sprinkler/api-token"),
+        default=Path("/etc/pi-sprinkler/api-token"),
     )
     args = parser.parse_args()
 

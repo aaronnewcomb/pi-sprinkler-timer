@@ -7,9 +7,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from open_sprinkler.controller import SprinklerController, StationDefinition
-from open_sprinkler.persistence import ScheduleStep, SQLiteRepository
-from open_sprinkler.scheduler import ScheduleRunner
+from pi_sprinkler.controller import SprinklerController, StationDefinition
+from pi_sprinkler.persistence import ScheduleStep, SQLiteRepository
+from pi_sprinkler.scheduler import ScheduleRunner
 
 
 class FakeRelayBank:

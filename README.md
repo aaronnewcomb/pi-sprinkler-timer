@@ -59,13 +59,36 @@ can take about 15 minutes. Package installation and the test suite may run
 quietly for several minutes, so allow the installer to finish unless it reports
 an error.
 
-When updating an existing installation, stop the GPIO-owning controller before
-rerunning the installer. The installer refuses to replace application files
-while the service is active, and starts it again after validation:
+When updating an installation that already uses the Pi Sprinkler service name,
+stop the GPIO-owning controller before rerunning the installer. The installer
+refuses to transfer relay ownership while a controller is active and starts the
+new service again only after validation:
+
+```bash
+sudo systemctl stop pi-sprinkler.service
+```
+
+### Upgrading a 3.0 installation with the old technical name
+
+Version 3.0 displayed the Pi Sprinkler Timer product name but retained the old
+`open-sprinkler-v3.service` deployment identifier. Stop that service before the
+first renamed update:
 
 ```bash
 sudo systemctl stop open-sprinkler-v3.service
 ```
+
+The installer migrates the controller configuration, API token, SQLite
+schedules and history, TLS certificate, and local certificate authority into
+the `pi-sprinkler` paths. It disables and archives the obsolete controller unit
+and lighttpd files under `/var/backups/pi-sprinkler/name-migration/`, then starts
+only `pi-sprinkler.service`. The old application, configuration, and state
+directories remain untouched as a rollback copy. Browser sessions use the new
+cookie namespace, so sign in again after the update.
+
+If the optional shutdown-button service was previously installed, rerun
+`sudo ./scripts/install-shutdown-button.sh` once to migrate it to
+`pi-sprinkler-shutdown-button.service`.
 
 Install the two bootstrap packages needed to download the installer:
 
@@ -190,20 +213,20 @@ so browser and Home Assistant actions use the same controller and safety rules.
 
 | Purpose | Path |
 | --- | --- |
-| Application source | `/opt/open-sprinkler/source` |
-| Python environment | `/opt/open-sprinkler/.venv` |
-| Controller configuration | `/etc/open-sprinkler/open-sprinkler.ini` |
-| API token | `/etc/open-sprinkler/api-token` |
-| Controller database | `/var/lib/open-sprinkler/open-sprinkler.db` |
-| systemd service | `/etc/systemd/system/open-sprinkler-v3.service` |
-| lighttpd proxy | `/etc/lighttpd/conf-available/99-open-sprinkler-v3.conf` |
+| Application source | `/opt/pi-sprinkler/source` |
+| Python environment | `/opt/pi-sprinkler/.venv` |
+| Controller configuration | `/etc/pi-sprinkler/pi-sprinkler.ini` |
+| API token | `/etc/pi-sprinkler/api-token` |
+| Controller database | `/var/lib/pi-sprinkler/pi-sprinkler.db` |
+| systemd service | `/etc/systemd/system/pi-sprinkler.service` |
+| lighttpd proxy | `/etc/lighttpd/conf-available/99-pi-sprinkler.conf` |
 
 Common service commands:
 
 ```bash
-systemctl status open-sprinkler-v3.service --no-pager -l
-sudo systemctl restart open-sprinkler-v3.service
-journalctl -u open-sprinkler-v3.service -n 80 --no-pager
+systemctl status pi-sprinkler.service --no-pager -l
+sudo systemctl restart pi-sprinkler.service
+journalctl -u pi-sprinkler.service -n 80 --no-pager
 ```
 
 ## Optional physical shutdown button

@@ -7,6 +7,6 @@ import os
 
 APPLICATION_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.environ.get(
-    "OPEN_SPRINKLER_CONFIG",
+    "PI_SPRINKLER_CONFIG",
     os.path.join(APPLICATION_DIRECTORY, "sprinkler.config"),
 )

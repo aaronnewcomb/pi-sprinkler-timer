@@ -11,7 +11,7 @@ import subprocess
 from collections.abc import Callable, Sequence
 from threading import Event
 
-LOGGER = logging.getLogger("open-sprinkler-shutdown-button")
+LOGGER = logging.getLogger("pi-sprinkler-shutdown-button")
 DEFAULT_BCM_PIN = 3
 DEFAULT_BOUNCE_TIME = 0.2
 POWER_OFF_COMMAND = ("/usr/bin/systemctl", "poweroff")

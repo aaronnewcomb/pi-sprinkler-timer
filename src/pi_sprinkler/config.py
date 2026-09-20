@@ -1,4 +1,4 @@
-"""3.0 runtime configuration loading."""
+"""Runtime configuration loading for Pi Sprinkler Timer."""
 
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ def load_settings(path: Path) -> RuntimeSettings:
             parser.get(
                 "Storage",
                 "database_path",
-                fallback="/var/lib/open-sprinkler/open-sprinkler.db",
+                fallback="/var/lib/pi-sprinkler/pi-sprinkler.db",
             )
         ),
         timezone=timezone,

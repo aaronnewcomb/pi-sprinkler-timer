@@ -8,8 +8,8 @@ from types import SimpleNamespace
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from open_sprinkler.persistence import ScheduleStep, SQLiteRepository
-from open_sprinkler.scheduler import ScheduleRunner
+from pi_sprinkler.persistence import ScheduleStep, SQLiteRepository
+from pi_sprinkler.scheduler import ScheduleRunner
 
 
 class FakeController:

@@ -8,21 +8,40 @@ sys.path.insert(0, str(ROOT / "src"))
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_runtime_assets_use_pi_sprinkler_namespace(self):
+        runtime_paths = [
+            ROOT / "src" / "pi_sprinkler",
+            ROOT / "systemd" / "pi-sprinkler.service",
+            ROOT / "systemd" / "pi-sprinkler-shutdown-button.service",
+            ROOT / "systemd" / "pi-sprinkler-garage-door.service",
+            ROOT / "lighttpd" / "99-pi-sprinkler.conf",
+            ROOT / "lighttpd" / "98-pi-sprinkler-tls.conf.example",
+            ROOT / "pi-sprinkler.ini.example",
+        ]
+        files = []
+        for path in runtime_paths:
+            files.extend(path.rglob("*") if path.is_dir() else [path])
+        for path in files:
+            if path.is_file() and "__pycache__" not in path.parts:
+                content = path.read_text(encoding="utf-8")
+                self.assertNotIn("open-sprinkler", content.lower(), path)
+                self.assertNotIn("open_sprinkler", content.lower(), path)
+
     def test_service_uses_dedicated_account_and_managed_directories(self):
-        unit = (ROOT / "systemd" / "open-sprinkler-v3.service").read_text(
+        unit = (ROOT / "systemd" / "pi-sprinkler.service").read_text(
             encoding="utf-8"
         )
 
-        self.assertIn("User=open-sprinkler", unit)
+        self.assertIn("User=pi-sprinkler", unit)
         self.assertIn("SupplementaryGroups=gpio", unit)
-        self.assertIn("RuntimeDirectory=open-sprinkler", unit)
-        self.assertIn("StateDirectory=open-sprinkler", unit)
+        self.assertIn("RuntimeDirectory=pi-sprinkler", unit)
+        self.assertIn("StateDirectory=pi-sprinkler", unit)
         self.assertIn("ProtectSystem=strict", unit)
         self.assertIn("NoNewPrivileges=true", unit)
-        self.assertIn("/opt/open-sprinkler/.venv/bin/open-sprinkler-v3", unit)
+        self.assertIn("/opt/pi-sprinkler/.venv/bin/pi-sprinkler", unit)
 
     def test_lighttpd_proxies_only_to_loopback_application_port(self):
-        proxy = (ROOT / "lighttpd" / "99-open-sprinkler-v3.conf").read_text(
+        proxy = (ROOT / "lighttpd" / "99-pi-sprinkler.conf").read_text(
             encoding="utf-8"
         )
 
@@ -33,7 +52,7 @@ class DeploymentTests(unittest.TestCase):
         self.assertNotIn("0.0.0.0", proxy)
 
     def test_tls_example_redirects_plain_http(self):
-        tls = (ROOT / "lighttpd" / "98-open-sprinkler-tls.conf.example").read_text(
+        tls = (ROOT / "lighttpd" / "98-pi-sprinkler-tls.conf.example").read_text(
             encoding="utf-8"
         )
 
@@ -43,19 +62,19 @@ class DeploymentTests(unittest.TestCase):
 
     def test_example_enables_secure_browser_cookies(self):
         parser = configparser.ConfigParser()
-        parser.read(ROOT / "open-sprinkler-v3.ini.example")
+        parser.read(ROOT / "pi-sprinkler.ini.example")
 
         self.assertTrue(parser.getboolean("Server", "secure_cookies"))
 
     def test_schedule_duration_survives_form_reset(self):
         script = (
-            ROOT / "src" / "open_sprinkler" / "web" / "assets" / "app.js"
+            ROOT / "src" / "pi_sprinkler" / "web" / "assets" / "app.js"
         ).read_text(encoding="utf-8")
 
         self.assertIn('duration.defaultValue = "10"', script)
 
     def test_dashboard_explains_connection_and_rain_delay_behavior(self):
-        web_root = ROOT / "src" / "open_sprinkler" / "web"
+        web_root = ROOT / "src" / "pi_sprinkler" / "web"
         page = (web_root / "index.html").read_text(encoding="utf-8")
         script = (web_root / "assets" / "app.js").read_text(encoding="utf-8")
 
@@ -73,7 +92,7 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn("Manual and weather holds", script)
 
     def test_dashboard_exposes_supervised_schedule_test_controls(self):
-        web_root = ROOT / "src" / "open_sprinkler" / "web"
+        web_root = ROOT / "src" / "pi_sprinkler" / "web"
         page = (web_root / "index.html").read_text(encoding="utf-8")
         script = (web_root / "assets" / "app.js").read_text(encoding="utf-8")
 
@@ -93,7 +112,7 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn("secure_cookies = false", guide)
         self.assertIn("Option B: trusted HTTPS", guide)
         self.assertIn("sudo apt install mkcert", guide)
-        self.assertIn("98-open-sprinkler-tls.conf", guide)
+        self.assertIn("98-pi-sprinkler-tls.conf", guide)
         self.assertIn("rootCA.pem", guide)
         self.assertIn("Never copy or share `rootCA-key.pem`", guide)
         self.assertIn("api.open-meteo.com", guide)

@@ -14,7 +14,7 @@ documentation or code change is verified on target hardware.
 - `pigpiod` is installed but disabled and inactive
 - TCP port 5555 was free before installation
 - The 24 VAC valve transformer remained disconnected
-- No existing Open Sprinkler Python files or `sprinkler.config` were present
+- No existing Pi Sprinkler Timer Python files or `sprinkler.config` were present
   under `/usr/lib/cgi-bin/` before deployment.
 - `/var/www/html/index.html` did not exist before deployment, so installing the
   application landing page does not replace a packaged or user-created file on
@@ -112,7 +112,7 @@ documentation or code change is verified on target hardware.
 - **Impact:** Authentication works now, but a future lighttpd update could
   prevent the service from starting.
 - **Resolution:** Add `server.modules += ( "mod_authn_file" )` before the
-  htdigest backend settings in the Open Sprinkler configuration.
+  htdigest backend settings in the Pi Sprinkler Timer configuration.
 - **Verification:** `lighttpd -tt` completes without output, the warning is
   gone, and lighttpd restarts successfully on the test Pi.
 - **README impact:** Include the explicit authentication backend module in the
@@ -128,8 +128,8 @@ documentation or code change is verified on target hardware.
   permissions, and systemd repeatedly restarted the daemon.
 - **Impact:** The GPIO scheduler could not start. No relay acceptance testing
   could proceed.
-- **Resolution:** Have systemd create `/run/open-sprinkler/` with
-  `RuntimeDirectory=open-sprinkler`, run the daemon from that writable
+- **Resolution:** Have systemd create `/run/pi-sprinkler/` with
+  `RuntimeDirectory=pi-sprinkler`, run the daemon from that writable
   directory, and keep executable and configuration paths absolute under
   `/usr/lib/cgi-bin/`.
 - **Verification:** Regression tests and `systemd-analyze verify` pass locally.

@@ -29,7 +29,7 @@ The installer installs `python3-gpiozero` and `python3-lgpio`, validates the
 unit, and enables and starts the service. If it finds the old listener, it:
 
 1. Backs up `/etc/rc.local` and `/etc/init.d/pi_shutdown` under
-   `/var/backups/open-sprinkler/`.
+   `/var/backups/pi-sprinkler/`.
 2. Comments only the known shutdown-button line in `rc.local`.
 3. Disables the `pi_shutdown` SysV boot links.
 4. Stops only the matching `/home/pi/scripts/shutdown.py` process.
@@ -39,7 +39,7 @@ or the sprinkler controller service.
 
 Use `--no-start` to install and validate the unit without starting it. Use
 `--pin BCM_PIN` to select a different BCM input. The effective values are kept
-in `/etc/default/open-sprinkler-shutdown-button`.
+in `/etc/default/pi-sprinkler-shutdown-button`.
 
 Do not use `--keep-legacy` for a running migration unless the old listener has
 already been stopped, because two processes must not own the same GPIO input.
@@ -47,9 +47,9 @@ already been stopped, because two processes must not own the same GPIO input.
 ## Service commands
 
 ```bash
-systemctl status open-sprinkler-shutdown-button.service --no-pager -l
-journalctl -u open-sprinkler-shutdown-button.service -n 50 --no-pager
-sudo systemctl restart open-sprinkler-shutdown-button.service
+systemctl status pi-sprinkler-shutdown-button.service --no-pager -l
+journalctl -u pi-sprinkler-shutdown-button.service -n 50 --no-pager
+sudo systemctl restart pi-sprinkler-shutdown-button.service
 ```
 
 Test with valve power disconnected. Pressing the button powers the Pi off, so

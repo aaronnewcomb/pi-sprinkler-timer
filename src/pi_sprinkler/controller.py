@@ -141,7 +141,7 @@ class SprinklerController:
         self._active_source = None
         self._active_schedule_id = None
         self._worker_task = asyncio.create_task(
-            self._command_worker(), name="open-sprinkler-controller"
+            self._command_worker(), name="pi-sprinkler-controller"
         )
 
     async def close(self) -> None:
@@ -313,7 +313,7 @@ class SprinklerController:
             self._active_schedule_id = command.schedule_id
             self._timer_task = asyncio.create_task(
                 self._expire_after(station.id, command.duration_seconds),
-                name=f"open-sprinkler-station-{station.id}-timer",
+                name=f"pi-sprinkler-station-{station.id}-timer",
             )
         elif command.name == "stop":
             assert command.station_id is not None

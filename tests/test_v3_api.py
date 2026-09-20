@@ -10,13 +10,13 @@ sys.path.insert(0, str(ROOT / "src"))
 try:
     import httpx
 
-    from open_sprinkler.api import create_app
-    from open_sprinkler.config import RuntimeSettings
-    from open_sprinkler.controller import SprinklerController, StationDefinition
-    from open_sprinkler.controller_settings import ControllerSettingsManager
-    from open_sprinkler.persistence import SQLiteRepository
-    from open_sprinkler.scheduler import ScheduleRunner
-    from open_sprinkler.weather import (
+    from pi_sprinkler.api import create_app
+    from pi_sprinkler.config import RuntimeSettings
+    from pi_sprinkler.controller import SprinklerController, StationDefinition
+    from pi_sprinkler.controller_settings import ControllerSettingsManager
+    from pi_sprinkler.persistence import SQLiteRepository
+    from pi_sprinkler.scheduler import ScheduleRunner
+    from pi_sprinkler.weather import (
         DailyForecast,
         HourlyPrecipitation,
         ResolvedLocation,
@@ -433,7 +433,7 @@ class ApiTests(unittest.TestCase):
                 "/api/v1/auth/login", json={"token": "test-token"}
             )
             self.assertEqual(response.status_code, 200)
-            self.assertIn("open_sprinkler_session", client.cookies)
+            self.assertIn("pi_sprinkler_session", client.cookies)
 
             response = await client.get("/api/v1/status")
             self.assertEqual(response.status_code, 200)
@@ -444,7 +444,7 @@ class ApiTests(unittest.TestCase):
             response = await client.post(
                 "/api/v1/actions/stop-all",
                 headers={
-                    "X-Open-Sprinkler-CSRF": client.cookies.get("open_sprinkler_csrf")
+                    "X-Pi-Sprinkler-CSRF": client.cookies.get("pi_sprinkler_csrf")
                 },
             )
             self.assertEqual(response.status_code, 200)

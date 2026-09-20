@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from open_sprinkler.controller import SprinklerController, StationDefinition
+from pi_sprinkler.controller import SprinklerController, StationDefinition
 
 
 class FakeRelayBank:

@@ -80,8 +80,8 @@ async function api(path, options = {}) {
     headers.set("Content-Type", "application/json");
   }
   if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
-    const csrfToken = cookie("open_sprinkler_csrf");
-    if (csrfToken) headers.set("X-Open-Sprinkler-CSRF", csrfToken);
+    const csrfToken = cookie("pi_sprinkler_csrf");
+    if (csrfToken) headers.set("X-Pi-Sprinkler-CSRF", csrfToken);
   }
   const response = await fetch(path, {
     ...options,

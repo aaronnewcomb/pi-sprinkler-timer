@@ -256,7 +256,7 @@ class WeatherAutomation:
         if self._settings.enabled:
             await self.refresh()
         self._task = asyncio.create_task(
-            self._run_loop(), name="open-sprinkler-weather"
+            self._run_loop(), name="pi-sprinkler-weather"
         )
 
     async def close(self) -> None:

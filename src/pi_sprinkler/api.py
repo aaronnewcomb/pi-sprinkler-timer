@@ -1,4 +1,4 @@
-"""FastAPI application for Pi Sprinkler Timer 3.0."""
+"""FastAPI application for Pi Sprinkler Timer."""
 
 from __future__ import annotations
 
@@ -48,8 +48,8 @@ from .weather import (
 )
 
 WEB_ROOT = Path(__file__).with_name("web")
-SESSION_COOKIE = "open_sprinkler_session"
-CSRF_COOKIE = "open_sprinkler_csrf"
+SESSION_COOKIE = "pi_sprinkler_session"
+CSRF_COOKIE = "pi_sprinkler_csrf"
 
 
 class StationResponse(BaseModel):
@@ -277,7 +277,7 @@ def create_app(
         request: Request,
         authorization: Annotated[str | None, Header()] = None,
         csrf_header: Annotated[
-            str | None, Header(alias="X-Open-Sprinkler-CSRF")
+            str | None, Header(alias="X-Pi-Sprinkler-CSRF")
         ] = None,
     ) -> None:
         scheme, separator, supplied_token = (authorization or "").partition(" ")

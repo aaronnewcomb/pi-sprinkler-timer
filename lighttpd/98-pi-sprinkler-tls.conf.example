@@ -1,8 +1,8 @@
 server.modules += ( "mod_redirect", "mod_openssl" )
 
 # Replace these paths with a certificate and private key for this controller.
-ssl.pemfile = "/etc/lighttpd/certs/open-sprinkler/fullchain.pem"
-ssl.privkey = "/etc/lighttpd/certs/open-sprinkler/privkey.pem"
+ssl.pemfile = "/etc/lighttpd/certs/pi-sprinkler/fullchain.pem"
+ssl.privkey = "/etc/lighttpd/certs/pi-sprinkler/privkey.pem"
 
 $SERVER["socket"] == ":443" {
     ssl.engine = "enable"

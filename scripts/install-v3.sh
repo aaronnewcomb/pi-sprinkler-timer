@@ -3,19 +3,37 @@ set -Eeuo pipefail
 
 readonly DEFAULT_REPOSITORY="https://github.com/aaronnewcomb/pi-sprinkler-timer.git"
 readonly DEFAULT_REF="v3.0.0"
-readonly APPLICATION_ROOT="/opt/open-sprinkler"
+readonly SERVICE_NAME="pi-sprinkler.service"
+readonly APPLICATION_ROOT="/opt/pi-sprinkler"
 readonly SOURCE_DIRECTORY="${APPLICATION_ROOT}/source"
 readonly VIRTUAL_ENVIRONMENT="${APPLICATION_ROOT}/.venv"
-readonly CONFIGURATION_DIRECTORY="/etc/open-sprinkler"
-readonly CONFIGURATION_FILE="${CONFIGURATION_DIRECTORY}/open-sprinkler.ini"
+readonly CONFIGURATION_DIRECTORY="/etc/pi-sprinkler"
+readonly CONFIGURATION_FILE="${CONFIGURATION_DIRECTORY}/pi-sprinkler.ini"
 readonly TOKEN_FILE="${CONFIGURATION_DIRECTORY}/api-token"
-readonly SERVICE_FILE="/etc/systemd/system/open-sprinkler-v3.service"
-readonly PROXY_AVAILABLE="/etc/lighttpd/conf-available/99-open-sprinkler-v3.conf"
-readonly PROXY_ENABLED="/etc/lighttpd/conf-enabled/99-open-sprinkler-v3.conf"
-readonly TLS_AVAILABLE="/etc/lighttpd/conf-available/98-open-sprinkler-tls.conf"
-readonly TLS_ENABLED="/etc/lighttpd/conf-enabled/98-open-sprinkler-tls.conf"
-readonly CERTIFICATE_DIRECTORY="/etc/lighttpd/certs/open-sprinkler"
+readonly SERVICE_FILE="/etc/systemd/system/pi-sprinkler.service"
+readonly PROXY_AVAILABLE="/etc/lighttpd/conf-available/99-pi-sprinkler.conf"
+readonly PROXY_ENABLED="/etc/lighttpd/conf-enabled/99-pi-sprinkler.conf"
+readonly TLS_AVAILABLE="/etc/lighttpd/conf-available/98-pi-sprinkler-tls.conf"
+readonly TLS_ENABLED="/etc/lighttpd/conf-enabled/98-pi-sprinkler-tls.conf"
+readonly CERTIFICATE_DIRECTORY="/etc/lighttpd/certs/pi-sprinkler"
 readonly MKCERT_CA_DIRECTORY="${CONFIGURATION_DIRECTORY}/mkcert-ca"
+readonly LEGACY_CONFIGURATION_DIRECTORY="/etc/open-sprinkler"
+readonly LEGACY_CONFIGURATION_FILE="${LEGACY_CONFIGURATION_DIRECTORY}/open-sprinkler.ini"
+readonly LEGACY_TOKEN_FILE="${LEGACY_CONFIGURATION_DIRECTORY}/api-token"
+readonly LEGACY_DATABASE_FILE="/var/lib/open-sprinkler/open-sprinkler.db"
+readonly LEGACY_CERTIFICATE_DIRECTORY="/etc/lighttpd/certs/open-sprinkler"
+readonly LEGACY_MKCERT_CA_DIRECTORY="${LEGACY_CONFIGURATION_DIRECTORY}/mkcert-ca"
+readonly MIGRATION_BACKUP_DIRECTORY="/var/backups/pi-sprinkler/name-migration"
+readonly -a LEGACY_SERVICE_NAMES=(
+    "open-sprinkler-v3.service"
+    "open-sprinkler.service"
+)
+readonly -a LEGACY_LIGHTTPD_PATHS=(
+    "/etc/lighttpd/conf-enabled/99-open-sprinkler-v3.conf"
+    "/etc/lighttpd/conf-available/99-open-sprinkler-v3.conf"
+    "/etc/lighttpd/conf-enabled/98-open-sprinkler-tls.conf"
+    "/etc/lighttpd/conf-available/98-open-sprinkler-tls.conf"
+)
 
 repository="${PI_SPRINKLER_REPOSITORY:-${DEFAULT_REPOSITORY}}"
 source_ref="${PI_SPRINKLER_REF:-${DEFAULT_REF}}"
@@ -29,7 +47,7 @@ full_upgrade=false
 
 usage() {
     cat <<'EOF'
-Install Pi Sprinkler Timer 3.0 on Raspberry Pi OS.
+Install Pi Sprinkler Timer on Raspberry Pi OS.
 
 Usage:
   sudo ./scripts/install-v3.sh --mode http [options]
@@ -88,6 +106,20 @@ enable_lighttpd_configuration() {
     fi
 }
 
+archive_legacy_path() {
+    local path="$1"
+    local destination
+    if [[ ! -e "${path}" && ! -L "${path}" ]]; then
+        return
+    fi
+    destination="${MIGRATION_BACKUP_DIRECTORY}${path}"
+    install -d -m 0700 -o root -g root "$(dirname -- "${destination}")"
+    [[ ! -e "${destination}" && ! -L "${destination}" ]] || \
+        fail "Migration backup already exists: ${destination}"
+    mv -- "${path}" "${destination}"
+    log "Archived legacy path ${path}"
+}
+
 set_secure_cookies() {
     local desired="$1"
     python3 - "${CONFIGURATION_FILE}" "${desired}" <<'PY'
@@ -110,7 +142,8 @@ PY
 }
 
 token_is_valid() {
-    python3 - "${TOKEN_FILE}" <<'PY'
+    local path="${1:-${TOKEN_FILE}}"
+    python3 - "${path}" <<'PY'
 from pathlib import Path
 import sys
 
@@ -123,6 +156,100 @@ raise SystemExit(0 if len(token) >= 32 else 1)
 PY
 }
 
+migrate_legacy_controller_data() {
+    local new_database_file="/var/lib/pi-sprinkler/pi-sprinkler.db"
+
+    if [[ ! -e "${CONFIGURATION_FILE}" && -f "${LEGACY_CONFIGURATION_FILE}" ]]; then
+        log "Migrating the existing controller configuration to ${CONFIGURATION_FILE}"
+        install -m 0640 -o root -g pi-sprinkler \
+            "${LEGACY_CONFIGURATION_FILE}" "${CONFIGURATION_FILE}"
+        python3 - "${CONFIGURATION_FILE}" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = text.replace(
+    "/var/lib/open-sprinkler/open-sprinkler.db",
+    "/var/lib/pi-sprinkler/pi-sprinkler.db",
+)
+path.write_text(text, encoding="utf-8")
+PY
+    fi
+
+    if ! token_is_valid && token_is_valid "${LEGACY_TOKEN_FILE}"; then
+        log "Migrating the existing API token to ${TOKEN_FILE}"
+        install -m 0640 -o root -g pi-sprinkler \
+            "${LEGACY_TOKEN_FILE}" "${TOKEN_FILE}"
+    fi
+
+    if [[ ! -e "${new_database_file}" && -f "${LEGACY_DATABASE_FILE}" ]]; then
+        log "Migrating schedules and run history to ${new_database_file}"
+        install -d -m 0750 -o pi-sprinkler -g pi-sprinkler \
+            "$(dirname -- "${new_database_file}")"
+        python3 - "${LEGACY_DATABASE_FILE}" "${new_database_file}" <<'PY'
+from pathlib import Path
+import sqlite3
+import sys
+
+source_path = Path(sys.argv[1]).resolve()
+destination_path = Path(sys.argv[2])
+source = sqlite3.connect(f"file:{source_path}?mode=ro", uri=True)
+destination = sqlite3.connect(destination_path)
+try:
+    source.backup(destination)
+finally:
+    destination.close()
+    source.close()
+PY
+        chown pi-sprinkler:pi-sprinkler "${new_database_file}"
+        chmod 0640 "${new_database_file}"
+    fi
+
+    if [[ ! -e "${CERTIFICATE_DIRECTORY}/fullchain.pem" && \
+          ! -e "${CERTIFICATE_DIRECTORY}/privkey.pem" && \
+          -s "${LEGACY_CERTIFICATE_DIRECTORY}/fullchain.pem" && \
+          -s "${LEGACY_CERTIFICATE_DIRECTORY}/privkey.pem" ]]; then
+        log "Migrating the existing TLS certificate"
+        install -d -m 0700 -o root -g root "${CERTIFICATE_DIRECTORY}"
+        install -m 0644 -o root -g root \
+            "${LEGACY_CERTIFICATE_DIRECTORY}/fullchain.pem" \
+            "${CERTIFICATE_DIRECTORY}/fullchain.pem"
+        install -m 0600 -o root -g root \
+            "${LEGACY_CERTIFICATE_DIRECTORY}/privkey.pem" \
+            "${CERTIFICATE_DIRECTORY}/privkey.pem"
+    fi
+
+    if [[ ! -e "${MKCERT_CA_DIRECTORY}/rootCA.pem" && \
+          ! -e "${MKCERT_CA_DIRECTORY}/rootCA-key.pem" && \
+          -s "${LEGACY_MKCERT_CA_DIRECTORY}/rootCA.pem" && \
+          -s "${LEGACY_MKCERT_CA_DIRECTORY}/rootCA-key.pem" ]]; then
+        log "Migrating the existing local certificate authority"
+        install -d -m 0700 -o root -g root "${MKCERT_CA_DIRECTORY}"
+        install -m 0644 -o root -g root \
+            "${LEGACY_MKCERT_CA_DIRECTORY}/rootCA.pem" \
+            "${MKCERT_CA_DIRECTORY}/rootCA.pem"
+        install -m 0600 -o root -g root \
+            "${LEGACY_MKCERT_CA_DIRECTORY}/rootCA-key.pem" \
+            "${MKCERT_CA_DIRECTORY}/rootCA-key.pem"
+    fi
+}
+
+retire_legacy_controller_units() {
+    local legacy_service
+    for legacy_service in "${LEGACY_SERVICE_NAMES[@]}"; do
+        systemctl disable "${legacy_service}" >/dev/null 2>&1 || true
+        archive_legacy_path "/etc/systemd/system/${legacy_service}"
+    done
+}
+
+retire_legacy_lighttpd_configuration() {
+    local path
+    for path in "${LEGACY_LIGHTTPD_PATHS[@]}"; do
+        archive_legacy_path "${path}"
+    done
+}
+
 wait_for_controller_health() {
     local attempt
     for attempt in {1..20}; do
@@ -133,7 +260,7 @@ wait_for_controller_health() {
         fi
         sleep 1
     done
-    journalctl -u open-sprinkler-v3.service -n 40 --no-pager >&2 || true
+    journalctl -u pi-sprinkler.service -n 40 --no-pager >&2 || true
     fail "Controller health endpoint did not become ready within 20 seconds"
 }
 
@@ -211,9 +338,15 @@ stage 1 8 "Safety and platform checks" \
 command -v apt-get >/dev/null || fail "This installer requires Raspberry Pi OS or Debian"
 [[ -r /proc/device-tree/model ]] || fail "Raspberry Pi hardware was not detected"
 grep -q "Raspberry Pi" /proc/device-tree/model || fail "Raspberry Pi hardware was not detected"
-if systemctl is-active --quiet open-sprinkler-v3.service; then
-    fail $'The controller service is active. Stop it before installing or updating:\n\n  sudo systemctl stop open-sprinkler-v3.service\n\nThen rerun this installer with the same options.'
-fi
+for controller_service in "${SERVICE_NAME}" "${LEGACY_SERVICE_NAMES[@]}"; do
+    if systemctl is-active --quiet "${controller_service}"; then
+        fail "The controller service ${controller_service} is active. Stop it before installing or updating:
+
+  sudo systemctl stop ${controller_service}
+
+Then rerun this installer with the same options."
+    fi
+done
 
 if [[ "${start_service}" == true && "${valve_power_disconnected}" != true ]]; then
     cat <<'EOF'
@@ -294,21 +427,24 @@ fi
 
 stage 5 8 "Service account, configuration, and API token" \
     "Creating a restricted controller account, preserving existing settings, and collecting the saved browser and Home Assistant credential when needed."
-if ! getent group open-sprinkler >/dev/null; then
-    groupadd --system open-sprinkler
+if ! getent group pi-sprinkler >/dev/null; then
+    groupadd --system pi-sprinkler
 fi
-if ! getent passwd open-sprinkler >/dev/null; then
-    useradd --system --gid open-sprinkler --home-dir /var/lib/open-sprinkler \
-        --shell /usr/sbin/nologin open-sprinkler
+if ! getent passwd pi-sprinkler >/dev/null; then
+    useradd --system --gid pi-sprinkler --home-dir /var/lib/pi-sprinkler \
+        --shell /usr/sbin/nologin pi-sprinkler
 fi
 getent group gpio >/dev/null || fail "Required gpio group does not exist"
-usermod --append --groups gpio open-sprinkler
-install -d -m 0750 -o root -g open-sprinkler "${CONFIGURATION_DIRECTORY}"
+usermod --append --groups gpio pi-sprinkler
+install -d -m 0750 -o root -g pi-sprinkler "${CONFIGURATION_DIRECTORY}"
+migrate_legacy_controller_data
 if [[ ! -e "${CONFIGURATION_FILE}" ]]; then
-    install -m 0640 -o root -g open-sprinkler \
-        "${SOURCE_DIRECTORY}/open-sprinkler-v3.ini.example" \
+    install -m 0640 -o root -g pi-sprinkler \
+        "${SOURCE_DIRECTORY}/pi-sprinkler.ini.example" \
         "${CONFIGURATION_FILE}"
 fi
+chown root:pi-sprinkler "${CONFIGURATION_FILE}"
+chmod 0640 "${CONFIGURATION_FILE}"
 if ! token_is_valid; then
     log "Creating the API token"
     cat <<'EOF'
@@ -327,29 +463,31 @@ The masked prompt waits indefinitely. Press Ctrl+C if you need to stop; rerun
 this installer later and it will safely return to this step.
 EOF
     read -r -p "Press Enter after the API token is generated and safely saved: " _
-    install -m 0640 -o root -g open-sprinkler /dev/null "${TOKEN_FILE}"
+    install -m 0640 -o root -g pi-sprinkler /dev/null "${TOKEN_FILE}"
     if ! systemd-ask-password --timeout=0 \
         "Paste the saved Pi Sprinkler Timer API token" >"${TOKEN_FILE}"; then
-        install -m 0640 -o root -g open-sprinkler /dev/null "${TOKEN_FILE}"
+        install -m 0640 -o root -g pi-sprinkler /dev/null "${TOKEN_FILE}"
         fail "API token entry was cancelled; rerun the installer to resume"
     fi
 fi
-chown root:open-sprinkler "${TOKEN_FILE}"
+chown root:pi-sprinkler "${TOKEN_FILE}"
 chmod 0640 "${TOKEN_FILE}"
 token_is_valid || fail "API token must contain at least 32 characters: ${TOKEN_FILE}"
 
 stage 6 8 "systemd controller service" \
     "Installing and validating the boot-time service definition that runs the controller with restricted permissions and GPIO-group access."
-install -m 0644 "${SOURCE_DIRECTORY}/systemd/open-sprinkler-v3.service" \
+install -m 0644 "${SOURCE_DIRECTORY}/systemd/pi-sprinkler.service" \
     "${SERVICE_FILE}"
+retire_legacy_controller_units
 systemctl daemon-reload
 systemd-analyze verify "${SERVICE_FILE}"
 
 stage 7 8 "Web proxy and transport security" \
     "Configuring lighttpd to expose the loopback-only application to the LAN using the selected HTTP or HTTPS mode, then validating the complete web-server configuration."
-install -m 0644 "${SOURCE_DIRECTORY}/lighttpd/99-open-sprinkler-v3.conf" \
+retire_legacy_lighttpd_configuration
+install -m 0644 "${SOURCE_DIRECTORY}/lighttpd/99-pi-sprinkler.conf" \
     "${PROXY_AVAILABLE}"
-enable_lighttpd_configuration "99-open-sprinkler-v3.conf" "${PROXY_ENABLED}"
+enable_lighttpd_configuration "99-pi-sprinkler.conf" "${PROXY_ENABLED}"
 
 if [[ "${access_mode}" == "http" ]]; then
     [[ ! -e "${TLS_ENABLED}" ]] || \
@@ -383,10 +521,10 @@ else
     chmod 0600 "${private_key}" "${MKCERT_CA_DIRECTORY}/rootCA-key.pem"
     if [[ ! -e "${TLS_AVAILABLE}" ]]; then
         install -m 0644 \
-            "${SOURCE_DIRECTORY}/lighttpd/98-open-sprinkler-tls.conf.example" \
+            "${SOURCE_DIRECTORY}/lighttpd/98-pi-sprinkler-tls.conf.example" \
             "${TLS_AVAILABLE}"
     fi
-    enable_lighttpd_configuration "98-open-sprinkler-tls.conf" "${TLS_ENABLED}"
+    enable_lighttpd_configuration "98-pi-sprinkler-tls.conf" "${TLS_ENABLED}"
     openssl x509 -in "${certificate}" -noout -subject -issuer -dates -ext subjectAltName
 fi
 
@@ -401,11 +539,11 @@ if [[ "${start_service}" == true ]]; then
     [[ "${valve_power_disconnected}" == true ]] || \
         fail "Internal safety check failed: valve power was not confirmed disconnected"
     log "Enabling and starting the controller with valve power confirmed disconnected"
-    systemctl enable --now open-sprinkler-v3.service
-    systemctl --no-pager --full status open-sprinkler-v3.service
+    systemctl enable --now "${SERVICE_NAME}"
+    systemctl --no-pager --full status "${SERVICE_NAME}"
     wait_for_controller_health
 else
-    systemctl disable --now open-sprinkler-v3.service
+    systemctl disable --now "${SERVICE_NAME}"
     log "The --no-start option left the GPIO service stopped and disabled"
 fi
 
