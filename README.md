@@ -37,7 +37,8 @@ when their configured time expires.
 - Python 3.11 or newer, installed automatically on Trixie
 
 > **Relay safety:** Keep the valve transformer disconnected during installation
-> and until every relay passes acceptance testing.
+> and until the controller starts with every station and relay off. Turn on
+> valve power only for supervised station testing.
 
 ## Install version 3
 
@@ -112,12 +113,13 @@ After installation:
    token.
 2. Open **Settings** and verify every station name and BCM GPIO pin, the
    timezone, maximum run time, and Stop-button policy.
-3. With valve power still disconnected, activate each station individually and
-   confirm that only the intended relay turns on.
+3. Turn on the valve power and activate each station individually. Confirm that
+   only the intended relay turns on.
 4. Switch directly between stations and confirm the previous relay turns off.
 5. Create and edit a short schedule, then verify its run appears in history.
 6. Configure weather automation if desired.
-7. Review the service log and reconnect valve power only after all checks pass.
+7. Review the service log. If any check fails, stop watering and disconnect
+   valve power before troubleshooting.
 
 ## Home Assistant
 
