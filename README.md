@@ -4,6 +4,8 @@ Pi Sprinkler Timer is a local-first irrigation controller for Raspberry Pi. It
 provides a responsive web dashboard, scheduling, weather-aware holds, run
 history, a versioned REST API, and Home Assistant integration.
 
+![Pi Sprinkler Timer web dashboard showing controller status, weather, and station controls](docs/images/pi-sprinkler-webpage.png)
+
 GPIO Zero controls active-low relay boards through the `lgpio` backend. A
 single systemd service owns every relay and automatically turns off manual runs
 when their configured time expires.
@@ -147,6 +149,10 @@ A complete YAML starter is split into three copy-ready files:
 5. Add a dashboard **Manual** card and paste
    [the Entities card template](docs/home-assistant/dashboard.yaml). Adjust any
    entity IDs that Home Assistant changed to avoid a naming collision.
+
+<img src="docs/images/pi-sprinkler-homeassistant.png"
+     alt="Home Assistant Pi Sprinkler Timer card with weather, duration, station switches, and Stop All"
+     width="420">
 
 The duration helper applies to the next manual station start. Each station
 switch reflects the active station, starts a bounded run when enabled, and
