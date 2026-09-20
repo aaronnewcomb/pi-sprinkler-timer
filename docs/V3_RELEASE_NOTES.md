@@ -24,7 +24,8 @@ local-first controller, responsive web dashboard, and versioned REST API.
 - Raspberry Pi OS Lite Trixie and Python 3.11 or newer are required.
 - Use a clean operating-system image when replacing an old v2 installation.
   Keep the old boot card unchanged for rollback.
-- Disconnect the valve transformer during installation and relay acceptance.
+- Disconnect the valve transformer during installation and startup-off checks.
+  Turn on valve power only for supervised station-by-station acceptance.
 - On a fresh image, install `git` and `ca-certificates` before cloning.
 - Allow about 15 minutes for the first installation on an original Raspberry
   Pi Zero.
@@ -49,7 +50,7 @@ configuration, relay acceptance, and troubleshooting.
 
 ## Validation
 
-- 85 automated tests passed
+- 88 automated tests passed
 - 62 relay-safety subtests passed
 - Python wheel and source distribution built successfully
 - The GPIO shutdown-button and garage-door services were migrated to systemd

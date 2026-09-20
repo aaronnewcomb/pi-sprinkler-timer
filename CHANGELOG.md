@@ -26,7 +26,8 @@ controller, responsive dashboard, and versioned REST API.
 - Raspberry Pi OS Lite Trixie and Python 3.11 or newer are required.
 - A clean operating-system image is recommended when replacing an old v2
   installation. Keep the old boot card unchanged for rollback.
-- Disconnect the valve transformer during installation and relay acceptance.
+- Disconnect the valve transformer during installation and startup-off checks.
+  Turn on valve power only for supervised station-by-station acceptance.
 - Install `git` and `ca-certificates` before cloning on a fresh image.
 - The first installation on an original Raspberry Pi Zero can take about 15
   minutes.
