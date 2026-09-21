@@ -348,9 +348,7 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertTrue(response.json()["running"])
 
-            response = await client.delete(
-                "/api/v1/schedule-test", headers=headers
-            )
+            response = await client.delete("/api/v1/schedule-test", headers=headers)
             self.assertEqual(response.status_code, 200)
             self.assertFalse(response.json()["running"])
             self.assertEqual(response.json()["outcome"], "stopped")

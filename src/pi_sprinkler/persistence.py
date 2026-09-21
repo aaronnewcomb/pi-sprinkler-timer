@@ -439,8 +439,7 @@ class SQLiteRepository:
                 sum(step.duration_seconds for step in existing.steps),
             ):
                 raise ScheduleOverlapError(
-                    f"Schedule '{name}' overlaps enabled schedule "
-                    f"'{existing.name}'"
+                    f"Schedule '{name}' overlaps enabled schedule '{existing.name}'"
                 )
 
     def _schedule_from_row(self, row: sqlite3.Row) -> Schedule:
@@ -521,11 +520,7 @@ def _recurring_windows_overlap(
             nearest_week = (first_start - second_base) // _SECONDS_PER_WEEK
             for week_offset in range(nearest_week - 1, nearest_week + 2):
                 second_start = second_base + week_offset * _SECONDS_PER_WEEK
-                if (
-                    same_schedule
-                    and first_start == second_base
-                    and week_offset == 0
-                ):
+                if same_schedule and first_start == second_base and week_offset == 0:
                     continue
                 if (
                     first_start < second_start + second_duration

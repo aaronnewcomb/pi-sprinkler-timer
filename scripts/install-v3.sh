@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 readonly DEFAULT_REPOSITORY="https://github.com/aaronnewcomb/pi-sprinkler-timer.git"
-readonly DEFAULT_REF="v3.0.0"
+readonly DEFAULT_REF="v3.1.0"
 readonly SERVICE_NAME="pi-sprinkler.service"
 readonly CONTROLLER_HEALTH_TIMEOUT_SECONDS=90
 readonly APPLICATION_ROOT="/opt/pi-sprinkler"

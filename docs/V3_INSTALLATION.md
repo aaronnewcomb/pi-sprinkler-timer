@@ -1,8 +1,8 @@
 # Pi Sprinkler Timer version 3 installation and acceptance
 
-This procedure prepares a separate Raspberry Pi 4 for 3.0 acceptance. Keep the
-working 2.0 controller and its boot media unchanged. Version 3.0 must pass the
-software, service, and relay tests below before valve power is connected.
+This procedure prepares a Raspberry Pi for a 3.1 installation or upgrade. Keep
+the previous controller boot media or application paths unchanged until 3.1
+passes the software, service, and relay tests below.
 
 The target image is Raspberry Pi OS Lite 64-bit Trixie. Use Raspberry Pi Imager
 and new boot media rather than upgrading a Bookworm card in place. Configure the
@@ -14,7 +14,7 @@ The checked-in installer presents and explains eight stages: platform and
 relay safety checks, operating-system packages, application installation,
 automated tests, service account and credentials, the systemd unit, web
 transport, and final activation. It defaults to the tested
-`v3.0.0` tag and preserves an existing configuration,
+`v3.1.0` tag and preserves an existing configuration,
 database, certificate pair, and valid API token.
 
 Install Git and the HTTPS certificate bundle on a fresh Pi:
@@ -24,10 +24,10 @@ sudo apt update
 sudo apt install -y git ca-certificates
 ```
 
-Then bootstrap the installer from the development branch:
+Then bootstrap the released installer:
 
 ```bash
-git clone --branch develop/v3.1 --single-branch \
+git clone --branch v3.1.0 --single-branch \
     https://github.com/aaronnewcomb/pi-sprinkler-timer.git \
     pi-sprinkler-installer
 cd pi-sprinkler-installer
@@ -76,23 +76,21 @@ sudo ./scripts/install-v3.sh --mode http \
 Use `--no-start` only when deliberately staging the files while leaving the
 controller service disabled and stopped.
 
-Use `--ref develop/v3.1` only when deliberately testing development beyond the
-checkpoint. If the installer checkout was cloned with
-`--branch v3.0.0 --single-branch`, fetch and switch the installer itself first:
+If the installer checkout was cloned with `--branch v3.0.0 --single-branch`,
+fetch and switch to the 3.1 installer itself before upgrading:
 
 ```bash
 cd ~/pi-sprinkler-installer
-git config --add remote.origin.fetch \
-  '+refs/heads/develop/v3.1:refs/remotes/origin/develop/v3.1'
-git fetch origin
-git switch --create develop/v3.1 --track origin/develop/v3.1
-git rev-parse --short HEAD
+git fetch origin tag v3.1.0
+git switch --detach v3.1.0
+git describe --tags --exact-match
 ```
 
-Confirm the expected development checkpoint before running the installer. The
-`--ref` option selects the application source installed under `/opt`; it does
-not update an older local installer script. Run `./scripts/install-v3.sh --help`
-for all options. The detailed manual steps below remain the troubleshooting,
+Confirm the final command reports `v3.1.0` before running the installer. Passing
+`--ref` to an older installer selects the application source installed under
+`/opt`; it does not update the older local installer script itself. Run
+`./scripts/install-v3.sh --help` for all options. The detailed manual steps
+below remain the troubleshooting,
 audit, and relay-acceptance reference. On an installation that already uses
 the current name, stop
 `pi-sprinkler.service` before rerunning the installer; it refuses to transfer
@@ -168,7 +166,7 @@ pgrep -af 'sprinkler.py|pi-sprinkler' || true
 
 ```bash
 sudo install -d -m 0755 -o root -g root /opt/pi-sprinkler
-sudo git clone --branch develop/v3.1 --single-branch \
+sudo git clone --branch v3.1.0 --single-branch \
     https://github.com/aaronnewcomb/pi-sprinkler-timer.git \
     /opt/pi-sprinkler/source
 sudo python3 -m venv --system-site-packages /opt/pi-sprinkler/.venv

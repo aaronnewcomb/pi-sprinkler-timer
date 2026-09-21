@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.1.0, unreleased
+## 3.1.0, 2026-09-20
 
 - Add a supervised schedule-test workflow that runs selected schedules in
   displayed order and overrides every included station to 30 seconds.
@@ -11,6 +11,16 @@
   cross-midnight conflicts.
 - Continue allowing disabled conflicting schedules to be drafted, while
   preventing them from being enabled until the conflict is resolved.
+- Make `pi-sprinkler` the canonical package, executable, service, account,
+  filesystem, proxy, browser-cookie, CSRF-header, and auxiliary-service
+  namespace.
+- Migrate v3.0 configuration, API token, SQLite state, TLS certificate, and
+  local certificate authority while preserving the old paths for rollback.
+- Extend controller readiness checks for Pi Zero startup, print actionable
+  systemd diagnostics, and stop the controller safely if health never succeeds.
+
+See the [full 3.1.0 release notes](docs/V3_1_RELEASE_NOTES.md) for installation,
+upgrade, migration, and validation details.
 
 ## 3.0.0, 2026-09-19
 

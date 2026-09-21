@@ -10,13 +10,12 @@ GPIO Zero controls active-low relay boards through the `lgpio` backend. A
 single systemd service owns every relay and automatically turns off manual runs
 when their configured time expires.
 
-> **Current release:** Version 3.0.0. The proven `v2.0.0` release remains
+> **Current release:** Version 3.1.0. The proven `v2.0.0` release remains
 > available for legacy installations and rollback.
 
-The `develop/v3.1` branch contains unreleased 3.1 development work. Its
-schedule test runs selected schedules in order with a supervised 30-second run
-per station, and schedule create/edit validation prevents enabled run windows
-from overlapping.
+Version 3.1 adds supervised 30-second schedule testing, prevents enabled
+schedule windows from overlapping, and completes the deployment rename from
+the old `open-sprinkler` namespace to `pi-sprinkler`.
 
 ## Features
 
@@ -52,31 +51,26 @@ from overlapping.
 The automated installer explains each stage, installs system packages and the
 application, runs the test suite, creates the restricted service account,
 configures lighttpd, collects the API token, and enables and starts the
-controller. It installs the released `v3.0.0` tag by default; use
-`--ref develop/v3.1` only for deliberate development testing.
+controller. It installs the released `v3.1.0` tag by default.
 On a first-generation, single-core Raspberry Pi Zero, the initial installation
 can take about 15 minutes. Package installation and the test suite may run
 quietly for several minutes, so allow the installer to finish unless it reports
 an error.
 
 An installer checkout cloned with `--branch v3.0.0 --single-branch` knows only
-that release tag. Before testing `develop/v3.1`, update the installer checkout
-itself so its migration and health-check logic also comes from the development
-branch:
+that release tag. Before upgrading, fetch and switch to the 3.1 installer so
+its migration and health-check logic also comes from the new release:
 
 ```bash
 cd ~/pi-sprinkler-installer
-git config --add remote.origin.fetch \
-  '+refs/heads/develop/v3.1:refs/remotes/origin/develop/v3.1'
-git fetch origin
-git switch --create develop/v3.1 --track origin/develop/v3.1
-git rev-parse --short HEAD
+git fetch origin tag v3.1.0
+git switch --detach v3.1.0
+git describe --tags --exact-match
 ```
 
-Confirm the final command reports the expected development checkpoint before
-running `./scripts/install-v3.sh --ref develop/v3.1`. The `--ref` option selects
-the application source installed under `/opt`; it does not update an older
-local copy of the installer script.
+Confirm the final command reports `v3.1.0` before running the installer. Passing
+`--ref` to an older installer selects the application source installed under
+`/opt`; it does not update the older local installer script itself.
 
 When updating an installation that already uses the Pi Sprinkler service name,
 stop the GPIO-owning controller before rerunning the installer. The installer
@@ -119,7 +113,7 @@ sudo apt install -y git ca-certificates
 Then clone the released installer:
 
 ```bash
-git clone --branch v3.0.0 --single-branch \
+git clone --branch v3.1.0 --single-branch \
     https://github.com/aaronnewcomb/pi-sprinkler-timer.git \
     pi-sprinkler-installer
 cd pi-sprinkler-installer

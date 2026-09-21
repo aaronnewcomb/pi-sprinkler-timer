@@ -28,9 +28,7 @@ class DeploymentTests(unittest.TestCase):
                 self.assertNotIn("open_sprinkler", content.lower(), path)
 
     def test_service_uses_dedicated_account_and_managed_directories(self):
-        unit = (ROOT / "systemd" / "pi-sprinkler.service").read_text(
-            encoding="utf-8"
-        )
+        unit = (ROOT / "systemd" / "pi-sprinkler.service").read_text(encoding="utf-8")
 
         self.assertIn("User=pi-sprinkler", unit)
         self.assertIn("SupplementaryGroups=gpio", unit)
@@ -41,9 +39,7 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn("/opt/pi-sprinkler/.venv/bin/pi-sprinkler", unit)
 
     def test_lighttpd_proxies_only_to_loopback_application_port(self):
-        proxy = (ROOT / "lighttpd" / "99-pi-sprinkler.conf").read_text(
-            encoding="utf-8"
-        )
+        proxy = (ROOT / "lighttpd" / "99-pi-sprinkler.conf").read_text(encoding="utf-8")
 
         self.assertIn('"host" => "127.0.0.1"', proxy)
         self.assertIn('"port" => 8000', proxy)
@@ -117,15 +113,14 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn("Never copy or share `rootCA-key.pem`", guide)
         self.assertIn("api.open-meteo.com", guide)
         self.assertIn("live\ncountdown", guide)
-        self.assertIn(
-            "+refs/heads/develop/v3.1:refs/remotes/origin/develop/v3.1", guide
-        )
-        self.assertIn("does\nnot update an older local installer script", guide)
+        self.assertIn("git fetch origin tag v3.1.0", guide)
+        self.assertIn("git switch --detach v3.1.0", guide)
+        self.assertIn("does not update the older local installer script", guide)
 
     def test_home_assistant_uses_product_namespace(self):
-        configuration = (
-            ROOT / "docs" / "home-assistant" / "rest.yaml"
-        ).read_text(encoding="utf-8")
+        configuration = (ROOT / "docs" / "home-assistant" / "rest.yaml").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("PI_SPRINKLER_HOST", configuration)
         self.assertIn("pi_sprinkler_authorization", configuration)
@@ -152,9 +147,9 @@ class DeploymentTests(unittest.TestCase):
         self.assertNotIn("open_sprinkler_", entities)
 
     def test_home_assistant_dashboard_disables_unsafe_header_toggle(self):
-        dashboard = (
-            ROOT / "docs" / "home-assistant" / "dashboard.yaml"
-        ).read_text(encoding="utf-8")
+        dashboard = (ROOT / "docs" / "home-assistant" / "dashboard.yaml").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("title: Pi Sprinkler Timer", dashboard)
         self.assertIn("show_header_toggle: false", dashboard)

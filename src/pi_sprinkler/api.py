@@ -276,9 +276,7 @@ def create_app(
     async def require_authentication(
         request: Request,
         authorization: Annotated[str | None, Header()] = None,
-        csrf_header: Annotated[
-            str | None, Header(alias="X-Pi-Sprinkler-CSRF")
-        ] = None,
+        csrf_header: Annotated[str | None, Header(alias="X-Pi-Sprinkler-CSRF")] = None,
     ) -> None:
         scheme, separator, supplied_token = (authorization or "").partition(" ")
         bearer_authenticated = (
