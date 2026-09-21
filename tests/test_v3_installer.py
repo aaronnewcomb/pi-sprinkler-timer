@@ -29,7 +29,7 @@ class InstallerTests(unittest.TestCase):
 
     def test_installer_defaults_to_the_tested_checkpoint(self):
         script = INSTALLER.read_text(encoding="utf-8")
-        self.assertIn('readonly DEFAULT_REF="v3.0.0"', script)
+        self.assertIn('readonly DEFAULT_REF="v3.1.0"', script)
         self.assertIn('source_ref="${PI_SPRINKLER_REF:-${DEFAULT_REF}}"', script)
 
     def test_installer_preserves_configuration_and_secrets(self):
@@ -77,11 +77,11 @@ class InstallerTests(unittest.TestCase):
             script,
         )
         self.assertIn(
-            "systemctl enable --now open-sprinkler-v3.service",
+            'systemctl enable --now "${SERVICE_NAME}"',
             script,
         )
         self.assertIn(
-            "systemctl disable --now open-sprinkler-v3.service",
+            'systemctl disable --now "${SERVICE_NAME}"',
             script,
         )
         self.assertNotIn("Next steps:", script)
@@ -89,10 +89,42 @@ class InstallerTests(unittest.TestCase):
     def test_installer_refuses_to_replace_unknown_paths_or_dirty_source(self):
         script = INSTALLER.read_text(encoding="utf-8")
         self.assertIn("Source checkout has local changes", script)
-        self.assertIn("Stop open-sprinkler-v3.service before installing", script)
+        self.assertIn("The controller service ${controller_service} is active", script)
+        self.assertIn(
+            "sudo systemctl stop ${controller_service}",
+            script,
+        )
         self.assertIn("Refusing to replace non-Git path", script)
         self.assertIn("Refusing to replace existing non-symlink", script)
         self.assertNotIn("rm -", script)
+
+    def test_installer_migrates_v3_legacy_names_without_losing_state(self):
+        script = INSTALLER.read_text(encoding="utf-8")
+        self.assertIn('readonly SERVICE_NAME="pi-sprinkler.service"', script)
+        self.assertIn('"open-sprinkler-v3.service"', script)
+        self.assertIn('"open-sprinkler.service"', script)
+        self.assertIn("migrate_legacy_controller_data", script)
+        self.assertIn("source.backup(destination)", script)
+        self.assertIn('token_is_valid "${LEGACY_TOKEN_FILE}"', script)
+        self.assertIn("Migrating the existing TLS certificate", script)
+        self.assertIn("Migrating the existing local certificate authority", script)
+        self.assertIn("retire_legacy_controller_units", script)
+        self.assertIn("retire_legacy_lighttpd_configuration", script)
+        self.assertIn("/var/backups/pi-sprinkler/name-migration", script)
+
+    def test_installer_allows_slow_startup_and_reports_health_failures(self):
+        script = INSTALLER.read_text(encoding="utf-8")
+        self.assertIn("readonly CONTROLLER_HEALTH_TIMEOUT_SECONDS=90", script)
+        self.assertIn('systemctl is-failed --quiet "${SERVICE_NAME}"', script)
+        self.assertIn(
+            "--property=ActiveState,SubState,Result,NRestarts,ExecMainCode,ExecMainStatus",
+            script,
+        )
+        self.assertIn('journalctl -u "${SERVICE_NAME}" -n 80', script)
+        self.assertIn(
+            'fail "${reason}; ${SERVICE_NAME} was stopped and disabled"', script
+        )
+        self.assertNotIn("within 20 seconds", script)
 
 
 if __name__ == "__main__":

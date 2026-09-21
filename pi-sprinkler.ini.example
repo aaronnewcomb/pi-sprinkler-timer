@@ -14,7 +14,7 @@ port = 8000
 secure_cookies = true
 
 [Storage]
-database_path = /var/lib/open-sprinkler/open-sprinkler.db
+database_path = /var/lib/pi-sprinkler/pi-sprinkler.db
 
 [Scheduler]
 # Use an IANA timezone name. Monday is day 0 in API schedule definitions.

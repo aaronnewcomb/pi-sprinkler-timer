@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "shutdown_button.py"
 INSTALLER = ROOT / "scripts" / "install-shutdown-button.sh"
-UNIT = ROOT / "systemd" / "open-sprinkler-shutdown-button.service"
+UNIT = ROOT / "systemd" / "pi-sprinkler-shutdown-button.service"
 
 
 def load_module():
@@ -63,10 +63,10 @@ def test_failed_poweroff_can_be_retried():
 def test_shutdown_button_unit_is_hardened_and_boot_enabled():
     unit = UNIT.read_text()
     assert "User=root" in unit
-    assert "ExecStart=/usr/bin/python3 /usr/local/libexec/open-sprinkler-shutdown-button.py" in unit
-    assert "EnvironmentFile=-/etc/default/open-sprinkler-shutdown-button" in unit
-    assert "RuntimeDirectory=open-sprinkler-shutdown-button" in unit
-    assert "WorkingDirectory=/run/open-sprinkler-shutdown-button" in unit
+    assert "ExecStart=/usr/bin/python3 /usr/local/libexec/pi-sprinkler-shutdown-button.py" in unit
+    assert "EnvironmentFile=-/etc/default/pi-sprinkler-shutdown-button" in unit
+    assert "RuntimeDirectory=pi-sprinkler-shutdown-button" in unit
+    assert "WorkingDirectory=/run/pi-sprinkler-shutdown-button" in unit
     assert "NoNewPrivileges=true" in unit
     assert "ProtectSystem=strict" in unit
     assert "WantedBy=multi-user.target" in unit
@@ -78,6 +78,10 @@ def test_shutdown_button_installer_has_legacy_migration_guard():
     assert "rc.local" in installer
     assert "update-rc.d pi_shutdown disable" in installer
     assert "legacy listener did not stop" in installer
+    assert 'LEGACY_SERVICE_NAME="open-sprinkler-shutdown-button.service"' in installer
+    assert 'systemctl disable --now "${LEGACY_SERVICE_NAME}"' in installer
+    assert 'Migrating ${LEGACY_DEFAULTS_FILE} to ${DEFAULTS_FILE}' in installer
+    assert 'archive_legacy_path "${LEGACY_SERVICE_FILE}"' in installer
     assert "systemctl enable --now" in installer
 
 

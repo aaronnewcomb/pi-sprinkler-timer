@@ -188,6 +188,8 @@ def test_installer_protects_credentials_and_disables_legacy_listener():
     assert "install -m 0640" in installer
     assert "already assigned to a sprinkler station" in installer
     assert "already assigned to the shutdown button" in installer
+    assert "LEGACY_SPRINKLER_CONFIG_FILE" in installer
+    assert "LEGACY_SHUTDOWN_DEFAULTS_FILE" in installer
     assert 'parser.get("Station GPIOs", "pins"' in installer
     assert "--check-config" in installer
     assert "systemctl disable --now reed_switch.service" in installer

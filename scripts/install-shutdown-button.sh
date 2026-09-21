@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly SERVICE_NAME="open-sprinkler-shutdown-button.service"
+readonly SERVICE_NAME="pi-sprinkler-shutdown-button.service"
 readonly SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}"
-readonly PROGRAM_FILE="/usr/local/libexec/open-sprinkler-shutdown-button.py"
-readonly DEFAULTS_FILE="/etc/default/open-sprinkler-shutdown-button"
-readonly BACKUP_DIRECTORY="/var/backups/open-sprinkler"
+readonly PROGRAM_FILE="/usr/local/libexec/pi-sprinkler-shutdown-button.py"
+readonly DEFAULTS_FILE="/etc/default/pi-sprinkler-shutdown-button"
+readonly BACKUP_DIRECTORY="/var/backups/pi-sprinkler"
+readonly LEGACY_SERVICE_NAME="open-sprinkler-shutdown-button.service"
+readonly LEGACY_SERVICE_FILE="/etc/systemd/system/${LEGACY_SERVICE_NAME}"
+readonly LEGACY_PROGRAM_FILE="/usr/local/libexec/open-sprinkler-shutdown-button.py"
+readonly LEGACY_DEFAULTS_FILE="/etc/default/open-sprinkler-shutdown-button"
 
 button_pin=3
 bounce_time=0.2
@@ -33,6 +37,20 @@ EOF
 
 log() { printf '[shutdown-button] %s\n' "$*"; }
 fail() { printf '[shutdown-button] ERROR: %s\n' "$*" >&2; exit 1; }
+
+archive_legacy_path() {
+    local path="$1"
+    local destination
+    if [[ ! -e "${path}" && ! -L "${path}" ]]; then
+        return
+    fi
+    destination="${BACKUP_DIRECTORY}/name-migration${path}"
+    install -d -m 0700 "$(dirname -- "${destination}")"
+    [[ ! -e "${destination}" && ! -L "${destination}" ]] \
+        || fail "migration backup already exists: ${destination}"
+    mv -- "${path}" "${destination}"
+    log "Archived legacy path ${path}"
+}
 
 while (($#)); do
     case "$1" in
@@ -83,6 +101,10 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-gpiozero pytho
 log "Installing the shutdown-button program and configuration"
 install -d -m 0755 /usr/local/libexec
 install -m 0755 "${SOURCE_DIRECTORY}/scripts/shutdown_button.py" "${PROGRAM_FILE}"
+if [[ ! -e "${DEFAULTS_FILE}" && -f "${LEGACY_DEFAULTS_FILE}" ]]; then
+    log "Migrating ${LEGACY_DEFAULTS_FILE} to ${DEFAULTS_FILE}"
+    install -m 0644 "${LEGACY_DEFAULTS_FILE}" "${DEFAULTS_FILE}"
+fi
 if [[ -e "${DEFAULTS_FILE}" ]]; then
     log "Preserving existing ${DEFAULTS_FILE}"
 else
@@ -94,7 +116,12 @@ else
 fi
 
 log "Installing and validating the systemd unit"
-install -m 0644 "${SOURCE_DIRECTORY}/systemd/open-sprinkler-shutdown-button.service" "${SERVICE_FILE}"
+install -m 0644 "${SOURCE_DIRECTORY}/systemd/pi-sprinkler-shutdown-button.service" "${SERVICE_FILE}"
+systemctl disable --now "${LEGACY_SERVICE_NAME}" >/dev/null 2>&1 || true
+archive_legacy_path "${LEGACY_SERVICE_FILE}"
+archive_legacy_path "${LEGACY_PROGRAM_FILE}"
+archive_legacy_path "${LEGACY_DEFAULTS_FILE}"
+systemctl daemon-reload
 systemd-analyze verify "${SERVICE_FILE}"
 
 legacy_rc_local=false
@@ -122,7 +149,7 @@ else
         [[ -f /etc/init.d/pi_shutdown ]] && cp -a /etc/init.d/pi_shutdown "${BACKUP_DIRECTORY}/pi_shutdown.${timestamp}"
     fi
     if [[ "${legacy_rc_local}" == true ]]; then
-        sed -i -E '/^[[:space:]]*[^#].*\/home\/(pi\/scripts|anewcomb)\/shutdown[.]py([[:space:]]|&|$)/ s/^/# Disabled by open-sprinkler-shutdown-button: /' /etc/rc.local
+        sed -i -E '/^[[:space:]]*[^#].*\/home\/(pi\/scripts|anewcomb)\/shutdown[.]py([[:space:]]|&|$)/ s/^/# Disabled by pi-sprinkler-shutdown-button: /' /etc/rc.local
     fi
     if [[ "${legacy_sysv}" == true ]] && command -v update-rc.d >/dev/null; then
         update-rc.d pi_shutdown disable >/dev/null 2>&1 || true

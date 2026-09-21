@@ -7,7 +7,11 @@ readonly PROGRAM_FILE="/usr/local/libexec/pi-sprinkler-garage-door.py"
 readonly CONFIG_DIRECTORY="/etc/pi-sprinkler-garage-door"
 readonly CONFIG_FILE="${CONFIG_DIRECTORY}/garage-door.ini"
 readonly SERVICE_USER="garage-door-monitor"
-readonly BACKUP_DIRECTORY="/var/backups/open-sprinkler"
+readonly BACKUP_DIRECTORY="/var/backups/pi-sprinkler"
+readonly SPRINKLER_CONFIG_FILE="/etc/pi-sprinkler/pi-sprinkler.ini"
+readonly LEGACY_SPRINKLER_CONFIG_FILE="/etc/open-sprinkler/open-sprinkler.ini"
+readonly SHUTDOWN_DEFAULTS_FILE="/etc/default/pi-sprinkler-shutdown-button"
+readonly LEGACY_SHUTDOWN_DEFAULTS_FILE="/etc/default/open-sprinkler-shutdown-button"
 
 gpio_pin=4
 bounce_time=0.1
@@ -130,7 +134,11 @@ PY
     )
 fi
 
-if [[ -f /etc/open-sprinkler/open-sprinkler.ini ]] && python3 - /etc/open-sprinkler/open-sprinkler.ini "${gpio_pin}" <<'PY'
+sprinkler_config="${SPRINKLER_CONFIG_FILE}"
+if [[ ! -f "${sprinkler_config}" && -f "${LEGACY_SPRINKLER_CONFIG_FILE}" ]]; then
+    sprinkler_config="${LEGACY_SPRINKLER_CONFIG_FILE}"
+fi
+if [[ -f "${sprinkler_config}" ]] && python3 - "${sprinkler_config}" "${gpio_pin}" <<'PY'
 import configparser
 import sys
 
@@ -147,8 +155,12 @@ then
     fail "BCM GPIO ${gpio_pin} is already assigned to a sprinkler station"
 fi
 
-if [[ -f /etc/default/open-sprinkler-shutdown-button ]]; then
-    shutdown_pin=$(sed -n -E 's/^[[:space:]]*BUTTON_BCM_PIN=([0-9]+)[[:space:]]*$/\1/p' /etc/default/open-sprinkler-shutdown-button | tail -n 1)
+shutdown_defaults="${SHUTDOWN_DEFAULTS_FILE}"
+if [[ ! -f "${shutdown_defaults}" && -f "${LEGACY_SHUTDOWN_DEFAULTS_FILE}" ]]; then
+    shutdown_defaults="${LEGACY_SHUTDOWN_DEFAULTS_FILE}"
+fi
+if [[ -f "${shutdown_defaults}" ]]; then
+    shutdown_pin=$(sed -n -E 's/^[[:space:]]*BUTTON_BCM_PIN=([0-9]+)[[:space:]]*$/\1/p' "${shutdown_defaults}" | tail -n 1)
     if [[ -n ${shutdown_pin} && ${shutdown_pin} == "${gpio_pin}" ]]; then
         fail "BCM GPIO ${gpio_pin} is already assigned to the shutdown button"
     fi

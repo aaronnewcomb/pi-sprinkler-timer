@@ -1,16 +1,17 @@
-# Pi Sprinkler Timer 3.0 architecture
+# Pi Sprinkler Timer version 3 architecture
 
 ## Goals
 
-Version 3.0 will replace the CGI scripts and private TCP command protocol with
-one local-first application that owns the web interface, schedules, API, and
-GPIO hardware. The tested `v2.0.0` release remains the rollback point while
-3.0 is developed on a separate branch.
+Version 3 replaces the CGI scripts and private TCP command protocol with one
+local-first application that owns the web interface, schedules, API, and GPIO
+hardware. The tested `v2.0.0` release remains available as a rollback point.
 
-Legacy internal identifiers such as the `open-sprinkler-v3.service` unit,
-filesystem paths, Python package, cookies, and API headers remain stable during
-3.0 development. Renaming those deployment interfaces would add migration risk
-without changing the user-facing product name.
+Version 3.1 aligns the deployment interfaces with the product name:
+`pi-sprinkler.service`, `/opt/pi-sprinkler`, `/etc/pi-sprinkler`,
+`/var/lib/pi-sprinkler`, the `pi_sprinkler` Python package, and Pi Sprinkler
+browser identifiers. The installer recognizes the v3.0 names only as migration
+inputs, preserves their data, and retires their startup files before activating
+the renamed service.
 
 The design must:
 
@@ -68,6 +69,8 @@ The current development branch implements:
 - `POST /api/v1/auth/logout`, clear the current browser session;
 - `GET|POST /api/v1/schedules`, list and create schedules;
 - `PUT|DELETE /api/v1/schedules/{id}`, replace or remove a schedule;
+- `GET|POST|DELETE /api/v1/schedule-test`, inspect, start, or safely stop a
+  selected-schedule test with a fixed 30-second station duration;
 - `GET|PUT|DELETE /api/v1/rain-delay`, inspect, set, or clear a delay;
 - `GET /api/v1/weather`, inspect current conditions, forecast, settings, and
   automatic hold state;
@@ -106,16 +109,30 @@ would add packaging and maintenance cost before the device API has stabilized.
 
 Target filesystem locations are:
 
-- `/etc/open-sprinkler/open-sprinkler.ini` for hardware and service settings;
-- `/etc/open-sprinkler/api-token` for the API bearer token;
-- `/var/lib/open-sprinkler/open-sprinkler.db` for schedules and run history;
-- `/run/open-sprinkler/` for temporary lgpio files.
+- `/etc/pi-sprinkler/pi-sprinkler.ini` for hardware and service settings;
+- `/etc/pi-sprinkler/api-token` for the API bearer token;
+- `/var/lib/pi-sprinkler/pi-sprinkler.db` for schedules and run history;
+- `/run/pi-sprinkler/` for temporary lgpio files.
 
 SQLite stores schedules, delays, controller state, and run history. It provides
 transactions and avoids concurrent INI rewrites. Schedule claims are atomic
 and limited to one run per local date. A bounded grace window avoids starting a
 morning program hours late after a long outage. Any unfinished station run is
 marked `interrupted` when the application initializes after a restart.
+
+Enabled schedules are validated as recurring weekly run windows using the sum
+of their station durations. Creation, editing, and enabling reject conflicts
+with another enabled schedule, including runs that cross midnight or the
+Sunday-to-Monday boundary. Adjacent windows may meet exactly. Disabled
+schedules may overlap while being drafted, but must be conflict-free before
+they can be enabled.
+
+Schedule tests are explicit manual operations and are not schedule claims.
+They preserve the selected schedule order and each schedule's station order,
+override every step to 30 seconds, record runs with source `schedule-test`, and
+do not change `last_started_local_date`. The scheduler serializes normal and
+test execution, and test cancellation de-energizes the active relay before the
+test task ends.
 
 Manual and automatic weather holds are persisted independently. The scheduler
 uses the later expiration as the effective hold, while the API reports both
@@ -149,10 +166,9 @@ and automation clients even when the dashboard button uses a narrower policy.
 3. **Web application, complete:** responsive interface using only `/api/v1`,
    with signed browser sessions, CSRF protection, and no state-changing GET
    requests.
-4. **Deployment, in progress:** dedicated service account, hardened systemd
-   unit, lighttpd reverse proxy, HTTPS guidance, and a fresh-system acceptance
-   procedure are implemented. Target-Pi acceptance, backup, and v2 data
-   migration remain.
+4. **Deployment, complete:** dedicated service account, hardened systemd unit,
+   lighttpd reverse proxy, HTTPS guidance, fresh-system acceptance, and safe
+   migration from the v3.0 deployment names are implemented.
 5. **Home Assistant discovery:** optional MQTT adapter and discovered valve
    entities, without making MQTT a core dependency.
 

@@ -7,8 +7,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from open_sprinkler.persistence import SQLiteRepository
-from open_sprinkler.weather import (
+from pi_sprinkler.persistence import SQLiteRepository
+from pi_sprinkler.weather import (
     DailyForecast,
     HourlyPrecipitation,
     ResolvedLocation,

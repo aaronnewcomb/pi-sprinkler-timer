@@ -1,4 +1,4 @@
-"""FastAPI application for Pi Sprinkler Timer 3.0."""
+"""FastAPI application for Pi Sprinkler Timer."""
 
 from __future__ import annotations
 
@@ -34,7 +34,12 @@ from .persistence import (
     ScheduleStep,
     SQLiteRepository,
 )
-from .scheduler import ScheduleRunner
+from .scheduler import (
+    TEST_STEP_SECONDS,
+    ScheduleRunner,
+    ScheduleTestBusyError,
+    ScheduleTestStatus,
+)
 from .weather import (
     WeatherAutomation,
     WeatherProviderError,
@@ -43,8 +48,8 @@ from .weather import (
 )
 
 WEB_ROOT = Path(__file__).with_name("web")
-SESSION_COOKIE = "open_sprinkler_session"
-CSRF_COOKIE = "open_sprinkler_csrf"
+SESSION_COOKIE = "pi_sprinkler_session"
+CSRF_COOKIE = "pi_sprinkler_csrf"
 
 
 class StationResponse(BaseModel):
@@ -115,6 +120,22 @@ class ScheduleResponse(BaseModel):
     days_of_week: list[int]
     steps: list[ScheduleStepRequest]
     last_started_local_date: str | None
+
+
+class ScheduleTestRequest(BaseModel):
+    schedule_ids: list[int] = Field(min_length=1)
+
+
+class ScheduleTestResponse(BaseModel):
+    running: bool
+    schedule_ids: list[int]
+    current_schedule_id: int | None
+    current_station_id: int | None
+    completed_steps: int
+    total_steps: int
+    step_duration_seconds: int
+    outcome: str | None
+    error: str | None
 
 
 class RainDelayRequest(BaseModel):
@@ -255,9 +276,7 @@ def create_app(
     async def require_authentication(
         request: Request,
         authorization: Annotated[str | None, Header()] = None,
-        csrf_header: Annotated[
-            str | None, Header(alias="X-Open-Sprinkler-CSRF")
-        ] = None,
+        csrf_header: Annotated[str | None, Header(alias="X-Pi-Sprinkler-CSRF")] = None,
     ) -> None:
         scheme, separator, supplied_token = (authorization or "").partition(" ")
         bearer_authenticated = (
@@ -399,7 +418,11 @@ def create_app(
         current = await controller.status()
         action = manager.settings.stop_action
         hold_until = None
-        if action == "station" and current.active_station_id is not None:
+        if current.active_source == "schedule-test" and scheduler is not None:
+            action = "schedule-test"
+            await scheduler.stop_test()
+            current = await controller.status()
+        elif action == "station" and current.active_station_id is not None:
             current = await controller.stop_station(
                 current.active_station_id, outcome="skipped"
             )
@@ -529,6 +552,42 @@ def create_app(
         except ScheduleNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @app.get(
+        "/api/v1/schedule-test",
+        response_model=ScheduleTestResponse,
+        dependencies=protected,
+    )
+    async def get_schedule_test() -> ScheduleTestResponse:
+        return _schedule_test_response(_require_scheduler(scheduler).test_status)
+
+    @app.post(
+        "/api/v1/schedule-test",
+        response_model=ScheduleTestResponse,
+        status_code=status.HTTP_202_ACCEPTED,
+        dependencies=protected,
+    )
+    async def start_schedule_test(
+        request: ScheduleTestRequest,
+    ) -> ScheduleTestResponse:
+        runner = _require_scheduler(scheduler)
+        try:
+            test_status = await runner.start_test(request.schedule_ids)
+        except ScheduleNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except ScheduleTestBusyError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return _schedule_test_response(test_status)
+
+    @app.delete(
+        "/api/v1/schedule-test",
+        response_model=ScheduleTestResponse,
+        dependencies=protected,
+    )
+    async def stop_schedule_test() -> ScheduleTestResponse:
+        return _schedule_test_response(await _require_scheduler(scheduler).stop_test())
 
     @app.get(
         "/api/v1/rain-delay",
@@ -667,6 +726,12 @@ def _require_weather(weather: WeatherAutomation | None) -> WeatherAutomation:
             status_code=503, detail="Weather automation is not configured"
         )
     return weather
+
+
+def _require_scheduler(scheduler: ScheduleRunner | None) -> ScheduleRunner:
+    if scheduler is None:
+        raise HTTPException(status_code=503, detail="Scheduler is not configured")
+    return scheduler
 
 
 def _require_settings_manager(
@@ -820,4 +885,18 @@ def _schedule_response(schedule: Schedule) -> ScheduleResponse:
             if schedule.last_started_local_date is not None
             else None
         ),
+    )
+
+
+def _schedule_test_response(test_status: ScheduleTestStatus) -> ScheduleTestResponse:
+    return ScheduleTestResponse(
+        running=test_status.running,
+        schedule_ids=list(test_status.schedule_ids),
+        current_schedule_id=test_status.current_schedule_id,
+        current_station_id=test_status.current_station_id,
+        completed_steps=test_status.completed_steps,
+        total_steps=test_status.total_steps,
+        step_duration_seconds=TEST_STEP_SECONDS,
+        outcome=test_status.outcome,
+        error=test_status.error,
     )

@@ -254,13 +254,13 @@ class Python3CompatibilityTests(unittest.TestCase):
         self.assertEqual(request("station_on:99"), [b"error"])
 
     def test_systemd_service_uses_python3_and_gpio_group(self):
-        service = (ROOT / "systemd" / "open-sprinkler.service").read_text(
+        service = (ROOT / "systemd" / "pi-sprinkler-legacy.service").read_text(
             encoding="utf-8"
         )
         self.assertIn("ExecStart=/usr/bin/python3", service)
-        self.assertIn("RuntimeDirectory=open-sprinkler", service)
+        self.assertIn("RuntimeDirectory=pi-sprinkler", service)
         self.assertIn("RuntimeDirectoryMode=0750", service)
-        self.assertIn("WorkingDirectory=/run/open-sprinkler", service)
+        self.assertIn("WorkingDirectory=/run/pi-sprinkler", service)
         self.assertNotIn("WorkingDirectory=/usr/lib/cgi-bin", service)
         self.assertIn("/usr/lib/cgi-bin/sprinkler.config", service)
         self.assertIn("SupplementaryGroups=gpio", service)
@@ -275,7 +275,7 @@ class Python3CompatibilityTests(unittest.TestCase):
         self.assertIn("valve transformer disconnected", readme)
         self.assertIn("sudo apt install -y git ca-certificates", readme)
         self.assertIn("can take about 15 minutes", readme)
-        service = (ROOT / "systemd" / "open-sprinkler.service").read_text(
+        service = (ROOT / "systemd" / "pi-sprinkler.service").read_text(
             encoding="utf-8"
         )
         self.assertIn("RuntimeDirectory", service)

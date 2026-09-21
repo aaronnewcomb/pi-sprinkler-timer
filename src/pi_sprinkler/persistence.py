@@ -42,6 +42,10 @@ class ScheduleNotFoundError(ValueError):
     """Raised when a requested schedule does not exist."""
 
 
+class ScheduleOverlapError(ValueError):
+    """Raised when an enabled schedule would overlap another run window."""
+
+
 class SQLiteRepository:
     """Own the 3.0 SQLite database and its transactional operations."""
 
@@ -148,6 +152,13 @@ class SQLiteRepository:
         name, start_text, days_text, steps = _validate_schedule(
             name, start_time, days_of_week, steps
         )
+        if enabled:
+            self._ensure_schedule_does_not_overlap(
+                name=name,
+                start_time=time.fromisoformat(start_text),
+                days_of_week=tuple(int(day) for day in days_text.split(",")),
+                steps=steps,
+            )
         timestamp = _as_utc(now or datetime.now(UTC)).isoformat()
         with self._connection:
             cursor = self._connection.execute(
@@ -177,6 +188,15 @@ class SQLiteRepository:
         name, start_text, days_text, steps = _validate_schedule(
             name, start_time, days_of_week, steps
         )
+        self.get_schedule(schedule_id)
+        if enabled:
+            self._ensure_schedule_does_not_overlap(
+                name=name,
+                start_time=time.fromisoformat(start_text),
+                days_of_week=tuple(int(day) for day in days_text.split(",")),
+                steps=steps,
+                exclude_schedule_id=schedule_id,
+            )
         timestamp = _as_utc(now or datetime.now(UTC)).isoformat()
         with self._connection:
             cursor = self._connection.execute(
@@ -385,6 +405,43 @@ class SQLiteRepository:
             ],
         )
 
+    def _ensure_schedule_does_not_overlap(
+        self,
+        *,
+        name: str,
+        start_time: time,
+        days_of_week: tuple[int, ...],
+        steps: tuple[ScheduleStep, ...],
+        exclude_schedule_id: int | None = None,
+    ) -> None:
+        duration_seconds = sum(step.duration_seconds for step in steps)
+        if _recurring_windows_overlap(
+            start_time,
+            days_of_week,
+            duration_seconds,
+            start_time,
+            days_of_week,
+            duration_seconds,
+            same_schedule=True,
+        ):
+            raise ScheduleOverlapError(
+                f"Schedule '{name}' overlaps itself across its selected days"
+            )
+        for existing in self.list_schedules():
+            if not existing.enabled or existing.id == exclude_schedule_id:
+                continue
+            if _recurring_windows_overlap(
+                start_time,
+                days_of_week,
+                duration_seconds,
+                existing.start_time,
+                existing.days_of_week,
+                sum(step.duration_seconds for step in existing.steps),
+            ):
+                raise ScheduleOverlapError(
+                    f"Schedule '{name}' overlaps enabled schedule '{existing.name}'"
+                )
+
     def _schedule_from_row(self, row: sqlite3.Row) -> Schedule:
         step_rows = self._connection.execute(
             """
@@ -436,6 +493,45 @@ def _validate_schedule(
         timespec="minutes"
     )
     return clean_name, start_text, ",".join(str(day) for day in days), steps
+
+
+_SECONDS_PER_DAY = 24 * 60 * 60
+_SECONDS_PER_WEEK = 7 * _SECONDS_PER_DAY
+
+
+def _recurring_windows_overlap(
+    first_time: time,
+    first_days: tuple[int, ...],
+    first_duration: int,
+    second_time: time,
+    second_days: tuple[int, ...],
+    second_duration: int,
+    *,
+    same_schedule: bool = False,
+) -> bool:
+    first_starts = tuple(
+        day * _SECONDS_PER_DAY + _time_seconds(first_time) for day in first_days
+    )
+    second_starts = tuple(
+        day * _SECONDS_PER_DAY + _time_seconds(second_time) for day in second_days
+    )
+    for first_start in first_starts:
+        for second_base in second_starts:
+            nearest_week = (first_start - second_base) // _SECONDS_PER_WEEK
+            for week_offset in range(nearest_week - 1, nearest_week + 2):
+                second_start = second_base + week_offset * _SECONDS_PER_WEEK
+                if same_schedule and first_start == second_base and week_offset == 0:
+                    continue
+                if (
+                    first_start < second_start + second_duration
+                    and second_start < first_start + first_duration
+                ):
+                    return True
+    return False
+
+
+def _time_seconds(value: time) -> int:
+    return value.hour * 3600 + value.minute * 60 + value.second
 
 
 def _as_utc(value: datetime) -> datetime:

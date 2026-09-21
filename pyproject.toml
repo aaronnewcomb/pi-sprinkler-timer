@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "open-sprinkler-controller"
-version = "3.0.0"
+name = "pi-sprinkler-timer"
+version = "3.1.0"
 description = "Local-first sprinkler controller for Raspberry Pi"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-open-sprinkler-v3 = "open_sprinkler.main:main"
+pi-sprinkler = "pi_sprinkler.main:main"
 
 [dependency-groups]
 dev = [
@@ -23,7 +23,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/open_sprinkler"]
+packages = ["src/pi_sprinkler"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

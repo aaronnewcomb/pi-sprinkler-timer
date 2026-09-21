@@ -10,13 +10,19 @@ GPIO Zero controls active-low relay boards through the `lgpio` backend. A
 single systemd service owns every relay and automatically turns off manual runs
 when their configured time expires.
 
-> **Current release:** Version 3.0.0. The proven `v2.0.0` release remains
+> **Current release:** Version 3.1.0. The proven `v2.0.0` release remains
 > available for legacy installations and rollback.
+
+Version 3.1 adds supervised 30-second schedule testing, prevents enabled
+schedule windows from overlapping, and completes the deployment rename from
+the old `open-sprinkler` namespace to `pi-sprinkler`.
 
 ## Features
 
 - Manual station control with a live remaining-time countdown
 - Multi-station schedules with editing and local-time execution
+- Supervised 30-second test runs for selected schedules
+- Schedule overlap prevention, including runs that cross midnight
 - Independent manual rain holds and automatic weather holds
 - Open-Meteo current conditions and precipitation forecasts
 - SQLite schedule, settings, and run-history storage
@@ -45,12 +51,57 @@ when their configured time expires.
 The automated installer explains each stage, installs system packages and the
 application, runs the test suite, creates the restricted service account,
 configures lighttpd, collects the API token, and enables and starts the
-controller. It installs the released `v3.0.0` tag by default; use
-`--ref develop/v3` only for deliberate development testing.
+controller. It installs the released `v3.1.0` tag by default.
 On a first-generation, single-core Raspberry Pi Zero, the initial installation
 can take about 15 minutes. Package installation and the test suite may run
 quietly for several minutes, so allow the installer to finish unless it reports
 an error.
+
+An installer checkout cloned with `--branch v3.0.0 --single-branch` knows only
+that release tag. Before upgrading, fetch and switch to the 3.1 installer so
+its migration and health-check logic also comes from the new release:
+
+```bash
+cd ~/pi-sprinkler-installer
+git fetch origin tag v3.1.0
+git switch --detach v3.1.0
+git describe --tags --exact-match
+```
+
+Confirm the final command reports `v3.1.0` before running the installer. Passing
+`--ref` to an older installer selects the application source installed under
+`/opt`; it does not update the older local installer script itself.
+
+When updating an installation that already uses the Pi Sprinkler service name,
+stop the GPIO-owning controller before rerunning the installer. The installer
+refuses to transfer relay ownership while a controller is active and starts the
+new service again only after validation:
+
+```bash
+sudo systemctl stop pi-sprinkler.service
+```
+
+### Upgrading a 3.0 installation with the old technical name
+
+Version 3.0 displayed the Pi Sprinkler Timer product name but retained the old
+`open-sprinkler-v3.service` deployment identifier. Stop that service before the
+first renamed update:
+
+```bash
+sudo systemctl stop open-sprinkler-v3.service
+```
+
+The installer migrates the controller configuration, API token, SQLite
+schedules and history, TLS certificate, and local certificate authority into
+the `pi-sprinkler` paths. It disables and archives the obsolete controller unit
+and lighttpd files under `/var/backups/pi-sprinkler/name-migration/`, then starts
+only `pi-sprinkler.service`. The old application, configuration, and state
+directories remain untouched as a rollback copy. Browser sessions use the new
+cookie namespace, so sign in again after the update.
+
+If the optional shutdown-button service was previously installed, rerun
+`sudo ./scripts/install-shutdown-button.sh` once to migrate it to
+`pi-sprinkler-shutdown-button.service`.
 
 Install the two bootstrap packages needed to download the installer:
 
@@ -62,7 +113,7 @@ sudo apt install -y git ca-certificates
 Then clone the released installer:
 
 ```bash
-git clone --branch v3.0.0 --single-branch \
+git clone --branch v3.1.0 --single-branch \
     https://github.com/aaronnewcomb/pi-sprinkler-timer.git \
     pi-sprinkler-installer
 cd pi-sprinkler-installer
@@ -117,8 +168,13 @@ After installation:
    only the intended relay turns on.
 4. Switch directly between stations and confirm the previous relay turns off.
 5. Create and edit a short schedule, then verify its run appears in history.
-6. Configure weather automation if desired.
-7. Review the service log. If any check fails, stop watering and disconnect
+   Overlapping enabled schedules are rejected; schedules that meet exactly at
+   an end/start boundary are allowed.
+6. Use **Test schedules** to select one or more schedules. Supervise the test
+   while each included station runs for 30 seconds in schedule order, and
+   confirm that **Stop test** immediately de-energizes the active relay.
+7. Configure weather automation if desired.
+8. Review the service log. If any check fails, stop watering and disconnect
    valve power before troubleshooting.
 
 ## Home Assistant
@@ -170,20 +226,20 @@ so browser and Home Assistant actions use the same controller and safety rules.
 
 | Purpose | Path |
 | --- | --- |
-| Application source | `/opt/open-sprinkler/source` |
-| Python environment | `/opt/open-sprinkler/.venv` |
-| Controller configuration | `/etc/open-sprinkler/open-sprinkler.ini` |
-| API token | `/etc/open-sprinkler/api-token` |
-| Controller database | `/var/lib/open-sprinkler/open-sprinkler.db` |
-| systemd service | `/etc/systemd/system/open-sprinkler-v3.service` |
-| lighttpd proxy | `/etc/lighttpd/conf-available/99-open-sprinkler-v3.conf` |
+| Application source | `/opt/pi-sprinkler/source` |
+| Python environment | `/opt/pi-sprinkler/.venv` |
+| Controller configuration | `/etc/pi-sprinkler/pi-sprinkler.ini` |
+| API token | `/etc/pi-sprinkler/api-token` |
+| Controller database | `/var/lib/pi-sprinkler/pi-sprinkler.db` |
+| systemd service | `/etc/systemd/system/pi-sprinkler.service` |
+| lighttpd proxy | `/etc/lighttpd/conf-available/99-pi-sprinkler.conf` |
 
 Common service commands:
 
 ```bash
-systemctl status open-sprinkler-v3.service --no-pager -l
-sudo systemctl restart open-sprinkler-v3.service
-journalctl -u open-sprinkler-v3.service -n 80 --no-pager
+systemctl status pi-sprinkler.service --no-pager -l
+sudo systemctl restart pi-sprinkler.service
+journalctl -u pi-sprinkler.service -n 80 --no-pager
 ```
 
 ## Optional physical shutdown button
