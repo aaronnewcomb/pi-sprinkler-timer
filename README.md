@@ -17,6 +17,8 @@ Version 3.1 adds supervised 30-second schedule testing, prevents enabled
 schedule windows from overlapping, and completes the deployment rename from
 the old `open-sprinkler` namespace to `pi-sprinkler`.
 
+Development work continues on `develop/v3.1`; use a tagged release for installations.
+
 ## Features
 
 - Manual station control with a live remaining-time countdown
